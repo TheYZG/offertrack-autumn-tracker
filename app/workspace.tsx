@@ -43,7 +43,7 @@ import {
 } from '@/components/ui/table';
 import { Toaster, toast } from '@/components/ui/toast';
 
-type StageFilter = '全部' | CurrentStage;
+type StageFilter = '流程中' | CurrentStage;
 
 const stageStyle: Record<CurrentStage, string> = {
   待补充: 'bg-slate-100 text-slate-600 ring-slate-200',
@@ -95,6 +95,21 @@ function websiteLabel(url: string) {
   } catch {
     return url;
   }
+}
+
+function compareApplications(a: ApplicationRecord, b: ApplicationRecord) {
+  const dateComparison = a.appliedAt.localeCompare(b.appliedAt);
+  if (dateComparison !== 0) return dateComparison;
+
+  const initialId = /^app-(\d+)$/;
+  const aInitialOrder = Number(a.id.match(initialId)?.[1] ?? 1000000);
+  const bInitialOrder = Number(b.id.match(initialId)?.[1] ?? 1000000);
+  if (aInitialOrder !== bInitialOrder) return aInitialOrder - bInitialOrder;
+  return a.createdAt.localeCompare(b.createdAt);
+}
+
+function sortApplications(records: ApplicationRecord[]) {
+  return [...records].sort(compareApplications);
 }
 
 async function requestApplication(
@@ -155,7 +170,7 @@ function AddApplicationDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black">新增企业</DialogTitle>
-          <DialogDescription>只填写三项必要信息。</DialogDescription>
+          <DialogDescription>只填写四项必要信息。</DialogDescription>
         </DialogHeader>
         <ApplicationForm
           value={draft}
@@ -231,7 +246,7 @@ function EditApplicationSheet({
 export function OfferTrackWorkspace() {
   const [records, setRecords] = useState(initialApplications);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<StageFilter>('全部');
+  const [filter, setFilter] = useState<StageFilter>('流程中');
   const [selected, setSelected] = useState<ApplicationRecord | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -248,7 +263,7 @@ export function OfferTrackWorkspace() {
         if (!response.ok || !payload.applications) {
           throw new Error(payload.error ?? '加载失败');
         }
-        setRecords(payload.applications);
+        setRecords(sortApplications(payload.applications));
         setLoadError('');
       })
       .catch((error: unknown) => {
@@ -265,14 +280,17 @@ export function OfferTrackWorkspace() {
     const keyword = query.trim().toLowerCase();
     return records.filter(
       (record) =>
-        (filter === '全部' || record.stage === filter) &&
+        ((filter === '流程中' && record.stage !== '已结束') ||
+          record.stage === filter) &&
         (!keyword || record.company.toLowerCase().includes(keyword)),
     );
   }, [filter, query, records]);
 
   const updateRecord = (record: ApplicationRecord) => {
     setRecords((current) =>
-      current.map((item) => (item.id === record.id ? record : item)),
+      sortApplications(
+        current.map((item) => (item.id === record.id ? record : item)),
+      ),
     );
     setSelected(null);
   };
@@ -302,7 +320,7 @@ export function OfferTrackWorkspace() {
           </div>
 
           <div className="mt-auto px-2 pb-2 text-sm leading-6 text-slate-400">
-            只记录企业、阶段和官网
+            只记录企业、阶段、投递时间和官网
           </div>
         </aside>
 
@@ -349,10 +367,11 @@ export function OfferTrackWorkspace() {
             </div>
 
             <div className="scrollbar-thin mb-5 flex gap-2 overflow-x-auto pb-2">
-              {(['全部', ...stageOptions] as const).map((stage) => {
+              {(['流程中', ...stageOptions] as const).map((stage) => {
                 const count =
-                  stage === '全部'
-                    ? records.length
+                  stage === '流程中'
+                    ? records.filter((record) => record.stage !== '已结束')
+                        .length
                     : records.filter((record) => record.stage === stage).length;
                 return (
                   <Button
@@ -375,6 +394,7 @@ export function OfferTrackWorkspace() {
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                     <TableHead className="min-w-[240px] px-5">企业名</TableHead>
                     <TableHead className="min-w-[130px]">当前阶段</TableHead>
+                    <TableHead className="min-w-[130px]">投递时间</TableHead>
                     <TableHead className="min-w-[220px]">
                       企业网站地址
                     </TableHead>
@@ -398,6 +418,9 @@ export function OfferTrackWorkspace() {
                       </TableCell>
                       <TableCell>
                         <StageBadge stage={record.stage} />
+                      </TableCell>
+                      <TableCell className="font-semibold text-slate-600">
+                        {record.appliedAt}
                       </TableCell>
                       <TableCell>
                         {record.portalUrl ? (
@@ -435,7 +458,7 @@ export function OfferTrackWorkspace() {
                   ))}
                   {filteredRecords.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="h-36 text-center">
+                      <TableCell colSpan={5} className="h-36 text-center">
                         <p className="font-bold">没有符合条件的企业</p>
                         <p className="mt-1 text-sm text-muted-foreground">
                           换一个阶段或搜索词试试
@@ -452,7 +475,9 @@ export function OfferTrackWorkspace() {
         <AddApplicationDialog
           open={addOpen}
           onOpenChange={setAddOpen}
-          onCreated={(record) => setRecords((current) => [record, ...current])}
+          onCreated={(record) =>
+            setRecords((current) => sortApplications([...current, record]))
+          }
         />
 
         {selected && (

@@ -16,6 +16,7 @@ export interface ApplicationRecord {
   company: string;
   portalUrl: string;
   stage: CurrentStage;
+  appliedAt: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -162,6 +163,7 @@ function normalizeRecord(
     company,
     portalUrl,
     stage,
+    appliedAt: '2026-09-07',
     createdAt: '2026-09-07T00:00:00.000Z',
     updatedAt: '2026-09-07T00:00:00.000Z',
   };

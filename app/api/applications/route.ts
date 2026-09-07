@@ -11,6 +11,7 @@ const selectApplications = `
     id,
     company,
     portal_url AS portalUrl,
+    applied_at AS appliedAt,
     CASE
       WHEN stage IN ('待补充', '已投递', '简历筛选', '测评', '笔试', '面试', 'Offer', '已结束') THEN stage
       WHEN stage LIKE '%面%' THEN '面试'
@@ -21,8 +22,16 @@ const selectApplications = `
     created_at AS createdAt,
     updated_at AS updatedAt
   FROM application_records
-  ORDER BY updated_at DESC, company ASC
+  ORDER BY
+    applied_at ASC,
+    CASE
+      WHEN id GLOB 'app-[0-9]*' THEN CAST(SUBSTR(id, 5) AS INTEGER)
+      ELSE 1000000
+    END ASC,
+    created_at ASC
 `;
+
+const initialAppliedDate = '2026-09-07';
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {
@@ -51,6 +60,10 @@ function parseApplication(input: unknown, id?: string): ApplicationRecord {
     stage,
     portalUrl:
       typeof value.portalUrl === 'string' ? value.portalUrl.trim() : '',
+    appliedAt:
+      typeof value.appliedAt === 'string' && value.appliedAt.trim()
+        ? value.appliedAt.trim()
+        : now.slice(0, 10),
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : now,
     updatedAt: now,
   };
@@ -69,14 +82,15 @@ function insertStatement(record: ApplicationRecord) {
   return getDatabase()
     .prepare(
       `INSERT OR IGNORE INTO application_records (
-        id, company, portal_url, stage, stage_category, stage_status,
+        id, company, portal_url, applied_at, stage, stage_category, stage_status,
         priority, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       record.id,
       record.company,
       record.portalUrl,
+      record.appliedAt,
       record.stage,
       categoryForStage(record.stage),
       '未开始',
@@ -96,6 +110,15 @@ export async function GET() {
     if (!count?.total) {
       await database.batch(initialApplications.map(insertStatement));
     }
+
+    await database
+      .prepare(
+        `UPDATE application_records
+         SET applied_at = ?
+         WHERE applied_at = ''`,
+      )
+      .bind(initialAppliedDate)
+      .run();
 
     const result = await database
       .prepare(selectApplications)
@@ -147,12 +170,13 @@ export async function PUT(request: Request) {
     await database
       .prepare(
         `UPDATE application_records SET
-          company = ?, portal_url = ?, stage = ?, stage_category = ?, updated_at = ?
+          company = ?, portal_url = ?, applied_at = ?, stage = ?, stage_category = ?, updated_at = ?
         WHERE id = ?`,
       )
       .bind(
         record.company,
         record.portalUrl,
+        record.appliedAt,
         record.stage,
         categoryForStage(record.stage),
         record.updatedAt,

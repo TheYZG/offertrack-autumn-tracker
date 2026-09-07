@@ -20,6 +20,7 @@ export function createBlankApplication(): ApplicationRecord {
     company: '',
     stage: '已投递',
     portalUrl: '',
+    appliedAt: new Date().toISOString().slice(0, 10),
     createdAt: now,
     updatedAt: now,
   };
@@ -87,6 +88,18 @@ export function ApplicationForm({
               ))}
             </SelectContent>
           </Select>
+        </Field>
+
+        <Field label="投递时间">
+          <Input
+            required
+            type="date"
+            value={value.appliedAt}
+            onChange={(event) =>
+              onChange({ ...value, appliedAt: event.target.value })
+            }
+            className="h-11 text-base"
+          />
         </Field>
 
         <Field label="企业网站地址">
