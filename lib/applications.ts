@@ -1,16 +1,36 @@
-export type StageCategory = '简历筛选' | '测评/笔试' | '面试中' | '待补充';
-export type StageStatus = '等待结果' | '待处理' | '未开始';
+export type StageCategory =
+  | '简历筛选'
+  | '测评/笔试'
+  | '面试中'
+  | 'Offer'
+  | '已结束'
+  | '待补充';
+export type StageStatus =
+  | '未开始'
+  | '待处理'
+  | '进行中'
+  | '等待结果'
+  | '已通过'
+  | '未通过'
+  | '已跳过';
 
 export interface ApplicationRecord {
   id: string;
   company: string;
+  jobTitle: string;
+  city: string;
   portalUrl: string;
+  appliedAt: string;
+  deadlineAt: string;
   sourceStatus: string | null;
   stage: string;
   stageCategory: StageCategory;
   stageStatus: StageStatus;
   nextAction: string;
   priority: '高' | '中' | '低';
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 const rawApplications: Array<[string, string, string?]> = [
@@ -144,11 +164,22 @@ function normalizeRecord(
   [company, portalUrl, sourceStatus]: (typeof rawApplications)[number],
   index: number,
 ): ApplicationRecord {
+  const base = {
+    id: `app-${index + 1}`,
+    company,
+    jobTitle: '',
+    city: '',
+    portalUrl,
+    appliedAt: '',
+    deadlineAt: '',
+    notes: '',
+    createdAt: '2026-09-07T00:00:00.000Z',
+    updatedAt: '2026-09-07T00:00:00.000Z',
+  };
+
   if (sourceStatus === '过了简历等面') {
     return {
-      id: `app-${index + 1}`,
-      company,
-      portalUrl,
+      ...base,
       sourceStatus,
       stage: '等待约面',
       stageCategory: '面试中',
@@ -159,9 +190,7 @@ function normalizeRecord(
   }
   if (sourceStatus === '待测评') {
     return {
-      id: `app-${index + 1}`,
-      company,
-      portalUrl,
+      ...base,
       sourceStatus,
       stage: '测评',
       stageCategory: '测评/笔试',
@@ -172,9 +201,7 @@ function normalizeRecord(
   }
   if (sourceStatus === '笔试完') {
     return {
-      id: `app-${index + 1}`,
-      company,
-      portalUrl,
+      ...base,
       sourceStatus,
       stage: '笔试',
       stageCategory: '测评/笔试',
@@ -185,9 +212,7 @@ function normalizeRecord(
   }
   if (sourceStatus === '泡池子') {
     return {
-      id: `app-${index + 1}`,
-      company,
-      portalUrl,
+      ...base,
       sourceStatus,
       stage: '简历筛选',
       stageCategory: '简历筛选',
@@ -197,9 +222,7 @@ function normalizeRecord(
     };
   }
   return {
-    id: `app-${index + 1}`,
-    company,
-    portalUrl,
+    ...base,
     sourceStatus: null,
     stage: '待补充',
     stageCategory: '待补充',
