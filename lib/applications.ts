@@ -1,34 +1,21 @@
-export type StageCategory =
-  | '简历筛选'
-  | '测评/笔试'
-  | '面试中'
-  | 'Offer'
-  | '已结束'
-  | '待补充';
-export type StageStatus =
-  | '未开始'
-  | '待处理'
-  | '进行中'
-  | '等待结果'
-  | '已通过'
-  | '未通过'
-  | '已跳过';
+export const stageOptions = [
+  '待补充',
+  '已投递',
+  '简历筛选',
+  '测评',
+  '笔试',
+  '面试',
+  'Offer',
+  '已结束',
+] as const;
+
+export type CurrentStage = (typeof stageOptions)[number];
 
 export interface ApplicationRecord {
   id: string;
   company: string;
-  jobTitle: string;
-  city: string;
   portalUrl: string;
-  appliedAt: string;
-  deadlineAt: string;
-  sourceStatus: string | null;
-  stage: string;
-  stageCategory: StageCategory;
-  stageStatus: StageStatus;
-  nextAction: string;
-  priority: '高' | '中' | '低';
-  notes: string;
+  stage: CurrentStage;
   createdAt: string;
   updatedAt: string;
 }
@@ -164,71 +151,19 @@ function normalizeRecord(
   [company, portalUrl, sourceStatus]: (typeof rawApplications)[number],
   index: number,
 ): ApplicationRecord {
-  const base = {
+  let stage: CurrentStage = '待补充';
+  if (sourceStatus === '泡池子') stage = '简历筛选';
+  if (sourceStatus === '待测评') stage = '测评';
+  if (sourceStatus === '笔试完') stage = '笔试';
+  if (sourceStatus === '过了简历等面') stage = '面试';
+
+  return {
     id: `app-${index + 1}`,
     company,
-    jobTitle: '',
-    city: '',
     portalUrl,
-    appliedAt: '',
-    deadlineAt: '',
-    notes: '',
+    stage,
     createdAt: '2026-09-07T00:00:00.000Z',
     updatedAt: '2026-09-07T00:00:00.000Z',
-  };
-
-  if (sourceStatus === '过了简历等面') {
-    return {
-      ...base,
-      sourceStatus,
-      stage: '等待约面',
-      stageCategory: '面试中',
-      stageStatus: '等待结果',
-      nextAction: '准备面试并等待通知',
-      priority: '高',
-    };
-  }
-  if (sourceStatus === '待测评') {
-    return {
-      ...base,
-      sourceStatus,
-      stage: '测评',
-      stageCategory: '测评/笔试',
-      stageStatus: '待处理',
-      nextAction: '完成在线测评',
-      priority: '高',
-    };
-  }
-  if (sourceStatus === '笔试完') {
-    return {
-      ...base,
-      sourceStatus,
-      stage: '笔试',
-      stageCategory: '测评/笔试',
-      stageStatus: '等待结果',
-      nextAction: '等待笔试结果',
-      priority: '中',
-    };
-  }
-  if (sourceStatus === '泡池子') {
-    return {
-      ...base,
-      sourceStatus,
-      stage: '简历筛选',
-      stageCategory: '简历筛选',
-      stageStatus: '等待结果',
-      nextAction: '关注招聘进度',
-      priority: '低',
-    };
-  }
-  return {
-    ...base,
-    sourceStatus: null,
-    stage: '待补充',
-    stageCategory: '待补充',
-    stageStatus: '未开始',
-    nextAction: '补充当前进度',
-    priority: '中',
   };
 }
 
