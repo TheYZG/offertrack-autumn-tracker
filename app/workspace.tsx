@@ -5,9 +5,11 @@ import {
   ArrowUpRight,
   Building2,
   CircleDot,
+  CircleOff,
   Pencil,
   Plus,
   Search,
+  Trash2,
 } from 'lucide-react';
 import { ApplicationForm, createBlankApplication } from './application-form';
 import {
@@ -18,6 +20,16 @@ import {
 } from '@/lib/applications';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -121,6 +133,20 @@ function sortApplications(records: ApplicationRecord[]) {
   return [...records].sort(compareApplications);
 }
 
+function normalizeWebsite(url: string) {
+  return url.trim().replace(/\/$/, '').toLowerCase();
+}
+
+function findDuplicate(draft: ApplicationRecord, records: ApplicationRecord[]) {
+  const company = draft.company.trim().toLowerCase();
+  const website = normalizeWebsite(draft.portalUrl);
+  return records.find(
+    (record) =>
+      record.company.trim().toLowerCase() === company ||
+      (website && normalizeWebsite(record.portalUrl) === website),
+  );
+}
+
 async function requestApplication(
   method: 'POST' | 'PUT',
   application: ApplicationRecord,
@@ -140,24 +166,46 @@ async function requestApplication(
   return payload.application;
 }
 
+async function deleteApplication(id: string) {
+  const response = await fetch('/api/applications', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
+  const payload = (await response.json()) as {
+    deletedId?: string;
+    error?: string;
+  };
+  if (!response.ok || !payload.deletedId) {
+    throw new Error(payload.error ?? '删除失败，请稍后重试');
+  }
+  return payload.deletedId;
+}
+
 function AddApplicationDialog({
   open,
   onOpenChange,
   onCreated,
+  existingRecords,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (record: ApplicationRecord) => void;
+  existingRecords: ApplicationRecord[];
 }) {
   const [draft, setDraft] = useState(createBlankApplication);
   const [submitting, setSubmitting] = useState(false);
+  const [duplicate, setDuplicate] = useState<ApplicationRecord | null>(null);
 
   const setOpen = (next: boolean) => {
-    if (!next) setDraft(createBlankApplication());
+    if (!next) {
+      setDraft(createBlankApplication());
+      setDuplicate(null);
+    }
     onOpenChange(next);
   };
 
-  const submit = async () => {
+  const save = async () => {
     setSubmitting(true);
     try {
       const saved = await requestApplication('POST', draft);
@@ -174,23 +222,59 @@ function AddApplicationDialog({
     }
   };
 
+  const submit = async () => {
+    const match = findDuplicate(draft, existingRecords);
+    if (match) {
+      setDuplicate(match);
+      return;
+    }
+    await save();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-black">新增企业</DialogTitle>
-          <DialogDescription>只填写四项必要信息。</DialogDescription>
-        </DialogHeader>
-        <ApplicationForm
-          value={draft}
-          onChange={setDraft}
-          onSubmit={submit}
-          onCancel={() => setOpen(false)}
-          submitting={submitting}
-          submitLabel="新增企业"
-        />
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black">新增企业</DialogTitle>
+            <DialogDescription>只填写四项必要信息。</DialogDescription>
+          </DialogHeader>
+          <ApplicationForm
+            value={draft}
+            onChange={setDraft}
+            onSubmit={submit}
+            onCancel={() => setOpen(false)}
+            submitting={submitting}
+            submitLabel="新增企业"
+          />
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={Boolean(duplicate)}
+        onOpenChange={(next) => !next && setDuplicate(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>可能重复添加</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{duplicate?.company}”已经在企业列表中。你仍然要添加这条记录吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>返回修改</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setDuplicate(null);
+                void save();
+              }}
+            >
+              仍然添加
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -198,21 +282,28 @@ function EditApplicationSheet({
   record,
   onOpenChange,
   onUpdated,
+  onDeleted,
 }: {
   record: ApplicationRecord;
   onOpenChange: (open: boolean) => void;
   onUpdated: (record: ApplicationRecord) => void;
+  onDeleted: (id: string) => void;
 }) {
   const [draft, setDraft] = useState(record);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  const submit = async () => {
+  const saveRecord = async (
+    nextDraft: ApplicationRecord,
+    successTitle: string,
+  ) => {
     setSubmitting(true);
     try {
-      const saved = await requestApplication('PUT', draft);
+      const saved = await requestApplication('PUT', nextDraft);
       onUpdated(saved);
       onOpenChange(false);
-      toast.add({ title: `已保存 ${saved.company}`, type: 'success' });
+      toast.add({ title: successTitle, type: 'success' });
     } catch (error) {
       toast.add({
         title: error instanceof Error ? error.message : '保存失败',
@@ -223,32 +314,105 @@ function EditApplicationSheet({
     }
   };
 
+  const submit = () => saveRecord(draft, `已保存 ${draft.company}`);
+
+  const markAsEnded = () =>
+    saveRecord(
+      { ...draft, stage: '已结束' },
+      `${draft.company} 已移至“已结束”`,
+    );
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      const deletedId = await deleteApplication(record.id);
+      setDeleteOpen(false);
+      onDeleted(deletedId);
+      onOpenChange(false);
+      toast.add({ title: `已删除 ${record.company}`, type: 'success' });
+    } catch (error) {
+      toast.add({
+        title: error instanceof Error ? error.message : '删除失败',
+        type: 'error',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <Sheet open onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-        <SheetHeader className="border-b pb-5">
-          <div className="flex items-center gap-4">
-            <CompanyMark name={record.company} />
-            <div className="min-w-0">
-              <SheetTitle className="truncate text-2xl font-black">
-                {record.company}
-              </SheetTitle>
-              <SheetDescription>编辑企业信息</SheetDescription>
+    <>
+      <Sheet open onOpenChange={onOpenChange}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+          <SheetHeader className="border-b pb-5">
+            <div className="flex items-center gap-4">
+              <CompanyMark name={record.company} />
+              <div className="min-w-0">
+                <SheetTitle className="truncate text-2xl font-black">
+                  {record.company}
+                </SheetTitle>
+                <SheetDescription>编辑企业信息</SheetDescription>
+              </div>
+            </div>
+          </SheetHeader>
+          <div className="space-y-6 px-4 py-6">
+            {draft.stage !== '已结束' && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                disabled={submitting || deleting}
+                onClick={() => void markAsEnded()}
+              >
+                <CircleOff className="size-4" />
+                一键标记为已结束
+              </Button>
+            )}
+            <ApplicationForm
+              value={draft}
+              onChange={setDraft}
+              onSubmit={submit}
+              onCancel={() => onOpenChange(false)}
+              submitting={submitting || deleting}
+              submitLabel="保存修改"
+            />
+            <div className="border-t pt-5">
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-start text-muted-foreground hover:bg-rose-50 hover:text-rose-700"
+                disabled={submitting || deleting}
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="size-4" />
+                删除这家企业
+              </Button>
             </div>
           </div>
-        </SheetHeader>
-        <div className="px-4 py-6">
-          <ApplicationForm
-            value={draft}
-            onChange={setDraft}
-            onSubmit={submit}
-            onCancel={() => onOpenChange(false)}
-            submitting={submitting}
-            submitLabel="保存修改"
-          />
-        </div>
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除“{record.company}”？</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后这条企业记录无法恢复。如果只是被挂，建议标记为“已结束”。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => void confirmDelete()}
+            >
+              {deleting ? '删除中…' : '确认删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -318,6 +482,11 @@ export function OfferTrackWorkspace() {
         current.map((item) => (item.id === record.id ? record : item)),
       ),
     );
+    setSelected(null);
+  };
+
+  const removeRecord = (id: string) => {
+    setRecords((current) => current.filter((record) => record.id !== id));
     setSelected(null);
   };
 
@@ -581,6 +750,7 @@ export function OfferTrackWorkspace() {
         <AddApplicationDialog
           open={addOpen}
           onOpenChange={setAddOpen}
+          existingRecords={records}
           onCreated={(record) =>
             setRecords((current) => sortApplications([...current, record]))
           }
@@ -592,6 +762,7 @@ export function OfferTrackWorkspace() {
             record={selected}
             onOpenChange={(open) => !open && setSelected(null)}
             onUpdated={updateRecord}
+            onDeleted={removeRecord}
           />
         )}
       </main>

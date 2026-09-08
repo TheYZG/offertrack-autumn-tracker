@@ -192,3 +192,32 @@ export async function PUT(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const body = await request.json();
+    const id =
+      body &&
+      typeof body === 'object' &&
+      'id' in body &&
+      typeof body.id === 'string'
+        ? body.id
+        : '';
+    if (!id) throw new Error('企业记录 ID 无效');
+
+    const result = await getDatabase()
+      .prepare('DELETE FROM application_records WHERE id = ?')
+      .bind(id)
+      .run();
+
+    if (!result.meta.changes) {
+      return json({ error: '没有找到这条企业记录' }, 404);
+    }
+    return json({ deletedId: id });
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : '删除企业失败' },
+      400,
+    );
+  }
+}
