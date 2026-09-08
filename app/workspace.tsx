@@ -188,7 +188,7 @@ function InlineStageSelect({
         >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent data-row-action>
           {stageOptions.map((stage) => (
             <SelectItem key={stage} value={stage}>
               {stage}
@@ -615,9 +615,21 @@ export function OfferTrackWorkspace() {
                       role={record.portalUrl ? 'link' : undefined}
                       tabIndex={record.portalUrl ? 0 : undefined}
                       className={`h-[76px] ${record.portalUrl ? 'cursor-pointer' : ''}`}
-                      onClick={() => openCompanyWebsite(record)}
+                      onClick={(event) => {
+                        const target = event.target;
+                        if (
+                          target instanceof Element &&
+                          target.closest(
+                            'button, a, input, [data-row-action]',
+                          )
+                        ) {
+                          return;
+                        }
+                        openCompanyWebsite(record);
+                      }}
                       onKeyDown={(event) => {
                         if (
+                          event.target === event.currentTarget &&
                           record.portalUrl &&
                           (event.key === 'Enter' || event.key === ' ')
                         ) {
