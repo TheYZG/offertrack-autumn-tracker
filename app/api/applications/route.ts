@@ -12,12 +12,14 @@ const selectApplications = `
     company,
     portal_url AS portalUrl,
     applied_at AS appliedAt,
+    checked_at AS checkedAt,
     CASE
-      WHEN stage IN ('待补充', '已投递', '简历筛选', '测评', '笔试', '面试', 'Offer', '已结束') THEN stage
+      WHEN stage IN ('简历筛选', '测评', '笔试', '面试', 'Offer', '已结束') THEN stage
+      WHEN stage IN ('待补充', '已投递') THEN '简历筛选'
       WHEN stage LIKE '%面%' THEN '面试'
       WHEN stage LIKE '%笔试%' THEN '笔试'
       WHEN stage LIKE '%测评%' THEN '测评'
-      ELSE '待补充'
+      ELSE '简历筛选'
     END AS stage,
     created_at AS createdAt,
     updated_at AS updatedAt
@@ -51,7 +53,7 @@ function parseApplication(input: unknown, id?: string): ApplicationRecord {
 
   const stage = stageOptions.includes(value.stage as CurrentStage)
     ? (value.stage as CurrentStage)
-    : '待补充';
+    : '简历筛选';
   const now = new Date().toISOString();
 
   return {
@@ -64,6 +66,8 @@ function parseApplication(input: unknown, id?: string): ApplicationRecord {
       typeof value.appliedAt === 'string' && value.appliedAt.trim()
         ? value.appliedAt.trim()
         : now.slice(0, 10),
+    checkedAt:
+      typeof value.checkedAt === 'string' ? value.checkedAt.trim() : '',
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : now,
     updatedAt: now,
   };
@@ -74,7 +78,6 @@ function categoryForStage(stage: CurrentStage) {
   if (stage === '面试') return '面试中';
   if (stage === 'Offer') return 'Offer';
   if (stage === '已结束') return '已结束';
-  if (stage === '待补充') return '待补充';
   return '简历筛选';
 }
 
@@ -82,15 +85,16 @@ function insertStatement(record: ApplicationRecord) {
   return getDatabase()
     .prepare(
       `INSERT OR IGNORE INTO application_records (
-        id, company, portal_url, applied_at, stage, stage_category, stage_status,
-        priority, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, company, portal_url, applied_at, checked_at, stage, stage_category,
+        stage_status, priority, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       record.id,
       record.company,
       record.portalUrl,
       record.appliedAt,
+      record.checkedAt,
       record.stage,
       categoryForStage(record.stage),
       '未开始',
@@ -118,6 +122,14 @@ export async function GET() {
          WHERE applied_at = ''`,
       )
       .bind(initialAppliedDate)
+      .run();
+
+    await database
+      .prepare(
+        `UPDATE application_records
+         SET stage = '简历筛选', stage_category = '简历筛选'
+         WHERE stage IN ('待补充', '已投递')`,
+      )
       .run();
 
     const result = await database
@@ -188,6 +200,47 @@ export async function PUT(request: Request) {
   } catch (error) {
     return json(
       { error: error instanceof Error ? error.message : '保存修改失败' },
+      400,
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const id =
+      body &&
+      typeof body === 'object' &&
+      'id' in body &&
+      typeof body.id === 'string'
+        ? body.id
+        : '';
+    const checkedAt =
+      body &&
+      typeof body === 'object' &&
+      'checkedAt' in body &&
+      typeof body.checkedAt === 'string'
+        ? body.checkedAt
+        : '';
+    if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(checkedAt)) {
+      throw new Error('更新日期无效');
+    }
+
+    const result = await getDatabase()
+      .prepare(
+        `UPDATE application_records
+         SET checked_at = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .bind(checkedAt, new Date().toISOString(), id)
+      .run();
+    if (!result.meta.changes) {
+      return json({ error: '没有找到这条企业记录' }, 404);
+    }
+    return json({ id, checkedAt });
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : '更新检查状态失败' },
       400,
     );
   }

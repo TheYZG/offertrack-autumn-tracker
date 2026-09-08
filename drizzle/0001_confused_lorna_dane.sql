@@ -1,0 +1,1 @@
+ALTER TABLE `application_records` ADD `checked_at` text DEFAULT '' NOT NULL;

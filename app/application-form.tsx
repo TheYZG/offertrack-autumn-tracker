@@ -18,9 +18,10 @@ export function createBlankApplication(): ApplicationRecord {
   return {
     id: '',
     company: '',
-    stage: '已投递',
+    stage: '简历筛选',
     portalUrl: '',
     appliedAt: new Date().toISOString().slice(0, 10),
+    checkedAt: '',
     createdAt: now,
     updatedAt: now,
   };

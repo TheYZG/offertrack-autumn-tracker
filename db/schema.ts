@@ -9,6 +9,7 @@ export const applicationRecords = sqliteTable(
     city: text('city').notNull().default(''),
     portalUrl: text('portal_url').notNull().default(''),
     appliedAt: text('applied_at').notNull().default(''),
+    checkedAt: text('checked_at').notNull().default(''),
     deadlineAt: text('deadline_at').notNull().default(''),
     sourceStatus: text('source_status'),
     stage: text('stage').notNull(),

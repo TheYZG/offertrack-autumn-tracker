@@ -1,6 +1,4 @@
 export const stageOptions = [
-  '待补充',
-  '已投递',
   '简历筛选',
   '测评',
   '笔试',
@@ -17,6 +15,7 @@ export interface ApplicationRecord {
   portalUrl: string;
   stage: CurrentStage;
   appliedAt: string;
+  checkedAt: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -152,7 +151,7 @@ function normalizeRecord(
   [company, portalUrl, sourceStatus]: (typeof rawApplications)[number],
   index: number,
 ): ApplicationRecord {
-  let stage: CurrentStage = '待补充';
+  let stage: CurrentStage = '简历筛选';
   if (sourceStatus === '泡池子') stage = '简历筛选';
   if (sourceStatus === '待测评') stage = '测评';
   if (sourceStatus === '笔试完') stage = '笔试';
@@ -164,6 +163,7 @@ function normalizeRecord(
     portalUrl,
     stage,
     appliedAt: '2026-09-07',
+    checkedAt: '',
     createdAt: '2026-09-07T00:00:00.000Z',
     updatedAt: '2026-09-07T00:00:00.000Z',
   };

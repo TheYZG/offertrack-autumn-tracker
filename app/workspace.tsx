@@ -63,12 +63,10 @@ import {
 } from '@/components/ui/table';
 import { Toaster, toast } from '@/components/ui/toast';
 
-type StageFilter = '流程中' | CurrentStage;
+type StageFilter = '流程中' | '待更新' | CurrentStage;
 const pageSize = 10;
 
 const stageStyle: Record<CurrentStage, string> = {
-  待补充: 'bg-slate-100 text-slate-600 ring-slate-200',
-  已投递: 'bg-cyan-50 text-cyan-700 ring-cyan-200',
   简历筛选: 'bg-sky-50 text-sky-700 ring-sky-200',
   测评: 'bg-amber-50 text-amber-700 ring-amber-200',
   笔试: 'bg-orange-50 text-orange-700 ring-orange-200',
@@ -133,6 +131,12 @@ function sortApplications(records: ApplicationRecord[]) {
   return [...records].sort(compareApplications);
 }
 
+function localDateStamp() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
+
 function normalizeWebsite(url: string) {
   return url.trim().replace(/\/$/, '').toLowerCase();
 }
@@ -180,6 +184,22 @@ async function deleteApplication(id: string) {
     throw new Error(payload.error ?? '删除失败，请稍后重试');
   }
   return payload.deletedId;
+}
+
+async function markApplicationChecked(id: string, checkedAt: string) {
+  const response = await fetch('/api/applications', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, checkedAt }),
+  });
+  const payload = (await response.json()) as {
+    id?: string;
+    checkedAt?: string;
+    error?: string;
+  };
+  if (!response.ok || !payload.id) {
+    throw new Error(payload.error ?? '更新检查状态失败');
+  }
 }
 
 function AddApplicationDialog({
@@ -425,6 +445,7 @@ export function OfferTrackWorkspace() {
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const today = localDateStamp();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -455,10 +476,13 @@ export function OfferTrackWorkspace() {
     return records.filter(
       (record) =>
         ((filter === '流程中' && record.stage !== '已结束') ||
+          (filter === '待更新' &&
+            record.stage !== '已结束' &&
+            record.checkedAt !== today) ||
           record.stage === filter) &&
         (!keyword || record.company.toLowerCase().includes(keyword)),
     );
-  }, [filter, query, records]);
+  }, [filter, query, records, today]);
 
   const pageCount = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -471,9 +495,34 @@ export function OfferTrackWorkspace() {
     setPage(Math.min(Math.max(nextPage, 1), pageCount));
   };
 
+  const markCompanyChecked = async (record: ApplicationRecord) => {
+    if (record.stage === '已结束' || record.checkedAt === today) return;
+    setRecords((current) =>
+      current.map((item) =>
+        item.id === record.id ? { ...item, checkedAt: today } : item,
+      ),
+    );
+    try {
+      await markApplicationChecked(record.id, today);
+    } catch (error) {
+      setRecords((current) =>
+        current.map((item) =>
+          item.id === record.id
+            ? { ...item, checkedAt: record.checkedAt }
+            : item,
+        ),
+      );
+      toast.add({
+        title: error instanceof Error ? error.message : '更新检查状态失败',
+        type: 'error',
+      });
+    }
+  };
+
   const openCompanyWebsite = (record: ApplicationRecord) => {
     if (!record.portalUrl) return;
     window.open(record.portalUrl, '_blank', 'noopener,noreferrer');
+    void markCompanyChecked(record);
   };
 
   const updateRecord = (record: ApplicationRecord) => {
@@ -565,12 +614,16 @@ export function OfferTrackWorkspace() {
             </div>
 
             <div className="scrollbar-thin mb-5 flex gap-2 overflow-x-auto pb-2">
-              {(['流程中', ...stageOptions] as const).map((stage) => {
-                const count =
-                  stage === '流程中'
-                    ? records.filter((record) => record.stage !== '已结束')
-                        .length
-                    : records.filter((record) => record.stage === stage).length;
+              {(['流程中', '待更新', ...stageOptions] as const).map((stage) => {
+                const count = records.filter((record) => {
+                  if (stage === '流程中') return record.stage !== '已结束';
+                  if (stage === '待更新') {
+                    return (
+                      record.stage !== '已结束' && record.checkedAt !== today
+                    );
+                  }
+                  return record.stage === stage;
+                }).length;
                 return (
                   <Button
                     key={stage}
@@ -640,7 +693,10 @@ export function OfferTrackWorkspace() {
                             href={record.portalUrl}
                             target="_blank"
                             rel="noreferrer"
-                            onClick={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void markCompanyChecked(record);
+                            }}
                             className="inline-flex max-w-[260px] items-center gap-2 font-semibold text-emerald-700 hover:underline"
                           >
                             <span className="truncate">
