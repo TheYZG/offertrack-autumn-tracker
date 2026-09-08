@@ -1,16 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowUpRight,
-  Building2,
-  CircleDot,
-  CircleOff,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUpRight, Building2, CircleDot, Plus, Search } from 'lucide-react';
 import { ApplicationForm, createBlankApplication } from './application-form';
 import {
   applications as initialApplications,
@@ -18,7 +9,6 @@ import {
   type ApplicationRecord,
   type CurrentStage,
 } from '@/lib/applications';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -47,12 +37,12 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -96,14 +86,117 @@ function CompanyMark({ name }: { name: string }) {
   );
 }
 
-function StageBadge({ stage }: { stage: CurrentStage }) {
+function InlineCompanyName({
+  record,
+  saving,
+  onSave,
+}: {
+  record: ApplicationRecord;
+  saving: boolean;
+  onSave: (company: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(record.company);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cancelling = useRef(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editing]);
+
+  const finishEditing = () => {
+    if (cancelling.current) {
+      cancelling.current = false;
+      return;
+    }
+
+    const company = draft.trim();
+    setEditing(false);
+    if (!company || company === record.company) {
+      setDraft(record.company);
+      return;
+    }
+    onSave(company);
+  };
+
+  if (editing) {
+    return (
+      <Input
+        ref={inputRef}
+        value={draft}
+        disabled={saving}
+        aria-label={`修改 ${record.company} 的企业名`}
+        className="h-10 max-w-56 text-base font-black sm:text-lg"
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={finishEditing}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === 'Enter') event.currentTarget.blur();
+          if (event.key === 'Escape') {
+            cancelling.current = true;
+            setDraft(record.company);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
   return (
-    <Badge
-      variant="outline"
-      className={`${stageStyle[stage]} h-8 px-3 text-sm font-bold ring-1 ring-inset`}
+    <button
+      type="button"
+      disabled={saving}
+      title="点击修改企业名"
+      className="max-w-56 truncate rounded-md px-1 py-2 text-left text-base font-black hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:text-lg"
+      onClick={(event) => {
+        event.stopPropagation();
+        setDraft(record.company);
+        setEditing(true);
+      }}
     >
-      {stage}
-    </Badge>
+      {record.company}
+    </button>
+  );
+}
+
+function InlineStageSelect({
+  record,
+  saving,
+  onChange,
+}: {
+  record: ApplicationRecord;
+  saving: boolean;
+  onChange: (stage: CurrentStage) => void;
+}) {
+  return (
+    <div title="点击修改当前阶段">
+      <Select
+        value={record.stage}
+        disabled={saving}
+        onValueChange={(stage) => {
+          if (stage && stage !== record.stage) onChange(stage as CurrentStage);
+        }}
+      >
+        <SelectTrigger
+          aria-label={`修改 ${record.company} 的当前阶段`}
+          className={`${stageStyle[record.stage]} h-9 min-w-28 border-0 px-3 text-sm font-bold ring-1 ring-inset`}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {stageOptions.map((stage) => (
+            <SelectItem key={stage} value={stage}>
+              {stage}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -168,22 +261,6 @@ async function requestApplication(
     throw new Error(payload.error ?? '保存失败，请稍后重试');
   }
   return payload.application;
-}
-
-async function deleteApplication(id: string) {
-  const response = await fetch('/api/applications', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id }),
-  });
-  const payload = (await response.json()) as {
-    deletedId?: string;
-    error?: string;
-  };
-  if (!response.ok || !payload.deletedId) {
-    throw new Error(payload.error ?? '删除失败，请稍后重试');
-  }
-  return payload.deletedId;
 }
 
 async function markApplicationChecked(id: string, checkedAt: string) {
@@ -298,151 +375,13 @@ function AddApplicationDialog({
   );
 }
 
-function EditApplicationSheet({
-  record,
-  onOpenChange,
-  onUpdated,
-  onDeleted,
-}: {
-  record: ApplicationRecord;
-  onOpenChange: (open: boolean) => void;
-  onUpdated: (record: ApplicationRecord) => void;
-  onDeleted: (id: string) => void;
-}) {
-  const [draft, setDraft] = useState(record);
-  const [submitting, setSubmitting] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  const saveRecord = async (
-    nextDraft: ApplicationRecord,
-    successTitle: string,
-  ) => {
-    setSubmitting(true);
-    try {
-      const saved = await requestApplication('PUT', nextDraft);
-      onUpdated(saved);
-      onOpenChange(false);
-      toast.add({ title: successTitle, type: 'success' });
-    } catch (error) {
-      toast.add({
-        title: error instanceof Error ? error.message : '保存失败',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const submit = () => saveRecord(draft, `已保存 ${draft.company}`);
-
-  const markAsEnded = () =>
-    saveRecord(
-      { ...draft, stage: '已结束' },
-      `${draft.company} 已移至“已结束”`,
-    );
-
-  const confirmDelete = async () => {
-    setDeleting(true);
-    try {
-      const deletedId = await deleteApplication(record.id);
-      setDeleteOpen(false);
-      onDeleted(deletedId);
-      onOpenChange(false);
-      toast.add({ title: `已删除 ${record.company}`, type: 'success' });
-    } catch (error) {
-      toast.add({
-        title: error instanceof Error ? error.message : '删除失败',
-        type: 'error',
-      });
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  return (
-    <>
-      <Sheet open onOpenChange={onOpenChange}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          <SheetHeader className="border-b pb-5">
-            <div className="flex items-center gap-4">
-              <CompanyMark name={record.company} />
-              <div className="min-w-0">
-                <SheetTitle className="truncate text-2xl font-black">
-                  {record.company}
-                </SheetTitle>
-                <SheetDescription>编辑企业信息</SheetDescription>
-              </div>
-            </div>
-          </SheetHeader>
-          <div className="space-y-6 px-4 py-6">
-            {draft.stage !== '已结束' && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-start border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                disabled={submitting || deleting}
-                onClick={() => void markAsEnded()}
-              >
-                <CircleOff className="size-4" />
-                一键标记为已结束
-              </Button>
-            )}
-            <ApplicationForm
-              value={draft}
-              onChange={setDraft}
-              onSubmit={submit}
-              onCancel={() => onOpenChange(false)}
-              submitting={submitting || deleting}
-              submitLabel="保存修改"
-            />
-            <div className="border-t pt-5">
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full justify-start text-muted-foreground hover:bg-rose-50 hover:text-rose-700"
-                disabled={submitting || deleting}
-                onClick={() => setDeleteOpen(true)}
-              >
-                <Trash2 className="size-4" />
-                删除这家企业
-              </Button>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除“{record.company}”？</AlertDialogTitle>
-            <AlertDialogDescription>
-              删除后这条企业记录无法恢复。如果只是被挂，建议标记为“已结束”。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleting}
-              onClick={() => void confirmDelete()}
-            >
-              {deleting ? '删除中…' : '确认删除'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
-
 export function OfferTrackWorkspace() {
   const [records, setRecords] = useState(initialApplications);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StageFilter>('流程中');
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<ApplicationRecord | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const today = localDateStamp();
@@ -531,12 +470,26 @@ export function OfferTrackWorkspace() {
         current.map((item) => (item.id === record.id ? record : item)),
       ),
     );
-    setSelected(null);
   };
 
-  const removeRecord = (id: string) => {
-    setRecords((current) => current.filter((record) => record.id !== id));
-    setSelected(null);
+  const saveInlineChange = async (
+    record: ApplicationRecord,
+    changes: Partial<Pick<ApplicationRecord, 'company' | 'stage'>>,
+    successTitle: string,
+  ) => {
+    setSavingId(record.id);
+    try {
+      const saved = await requestApplication('PUT', { ...record, ...changes });
+      updateRecord(saved);
+      toast.add({ title: successTitle, type: 'success' });
+    } catch (error) {
+      toast.add({
+        title: error instanceof Error ? error.message : '保存失败',
+        type: 'error',
+      });
+    } finally {
+      setSavingId(null);
+    }
   };
 
   return (
@@ -652,7 +605,7 @@ export function OfferTrackWorkspace() {
                     <TableHead className="min-w-[220px]">
                       企业网站地址
                     </TableHead>
-                    <TableHead className="w-20 text-center">编辑</TableHead>
+                    <TableHead className="w-24 text-center">结束</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -676,13 +629,31 @@ export function OfferTrackWorkspace() {
                       <TableCell className="px-5">
                         <div className="flex items-center gap-4">
                           <CompanyMark name={record.company} />
-                          <span className="text-base font-black sm:text-lg">
-                            {record.company}
-                          </span>
+                          <InlineCompanyName
+                            record={record}
+                            saving={savingId === record.id}
+                            onSave={(company) =>
+                              void saveInlineChange(
+                                record,
+                                { company },
+                                `企业名已改为 ${company}`,
+                              )
+                            }
+                          />
                         </div>
                       </TableCell>
                       <TableCell>
-                        <StageBadge stage={record.stage} />
+                        <InlineStageSelect
+                          record={record}
+                          saving={savingId === record.id}
+                          onChange={(stage) =>
+                            void saveInlineChange(
+                              record,
+                              { stage },
+                              `${record.company} 已更新为“${stage}”`,
+                            )
+                          }
+                        />
                       </TableCell>
                       <TableCell className="font-semibold text-slate-600">
                         {record.appliedAt}
@@ -711,15 +682,23 @@ export function OfferTrackWorkspace() {
                       <TableCell className="text-center">
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`编辑 ${record.company}`}
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            record.stage === '已结束' || savingId === record.id
+                          }
+                          aria-label={`将 ${record.company} 标记为已结束`}
+                          className="border-rose-200 font-bold text-rose-700 hover:bg-rose-50 hover:text-rose-800"
                           onClick={(event) => {
                             event.stopPropagation();
-                            setSelected(record);
+                            void saveInlineChange(
+                              record,
+                              { stage: '已结束' },
+                              `${record.company} 已移至“已结束”`,
+                            );
                           }}
                         >
-                          <Pencil className="size-4" />
+                          {record.stage === '已结束' ? '已结束' : '一键结束'}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -811,16 +790,6 @@ export function OfferTrackWorkspace() {
             setRecords((current) => sortApplications([...current, record]))
           }
         />
-
-        {selected && (
-          <EditApplicationSheet
-            key={selected.id}
-            record={selected}
-            onOpenChange={(open) => !open && setSelected(null)}
-            onUpdated={updateRecord}
-            onDeleted={removeRecord}
-          />
-        )}
       </main>
     </Toaster>
   );
