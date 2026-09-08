@@ -27,6 +27,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -44,6 +52,7 @@ import {
 import { Toaster, toast } from '@/components/ui/toast';
 
 type StageFilter = '流程中' | CurrentStage;
+const pageSize = 10;
 
 const stageStyle: Record<CurrentStage, string> = {
   待补充: 'bg-slate-100 text-slate-600 ring-slate-200',
@@ -247,6 +256,7 @@ export function OfferTrackWorkspace() {
   const [records, setRecords] = useState(initialApplications);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StageFilter>('流程中');
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<ApplicationRecord | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -285,6 +295,22 @@ export function OfferTrackWorkspace() {
         (!keyword || record.company.toLowerCase().includes(keyword)),
     );
   }, [filter, query, records]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageRecords = filteredRecords.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+
+  const goToPage = (nextPage: number) => {
+    setPage(Math.min(Math.max(nextPage, 1), pageCount));
+  };
+
+  const openCompanyWebsite = (record: ApplicationRecord) => {
+    if (!record.portalUrl) return;
+    window.open(record.portalUrl, '_blank', 'noopener,noreferrer');
+  };
 
   const updateRecord = (record: ApplicationRecord) => {
     setRecords((current) =>
@@ -359,7 +385,10 @@ export function OfferTrackWorkspace() {
                 <Search className="absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
                 <Input
                   value={query}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setPage(1);
+                  }}
                   placeholder="搜索企业"
                   className="h-11 bg-white pl-10 text-base"
                 />
@@ -379,7 +408,10 @@ export function OfferTrackWorkspace() {
                     type="button"
                     variant={filter === stage ? 'default' : 'outline'}
                     className="shrink-0 rounded-full"
-                    onClick={() => setFilter(stage)}
+                    onClick={() => {
+                      setFilter(stage);
+                      setPage(1);
+                    }}
                   >
                     {stage}
                     <span className="opacity-70">{count}</span>
@@ -402,11 +434,22 @@ export function OfferTrackWorkspace() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRecords.map((record) => (
+                  {pageRecords.map((record) => (
                     <TableRow
                       key={record.id}
-                      className="h-[76px] cursor-pointer"
-                      onClick={() => setSelected(record)}
+                      role={record.portalUrl ? 'link' : undefined}
+                      tabIndex={record.portalUrl ? 0 : undefined}
+                      className={`h-[76px] ${record.portalUrl ? 'cursor-pointer' : ''}`}
+                      onClick={() => openCompanyWebsite(record)}
+                      onKeyDown={(event) => {
+                        if (
+                          record.portalUrl &&
+                          (event.key === 'Enter' || event.key === ' ')
+                        ) {
+                          event.preventDefault();
+                          openCompanyWebsite(record);
+                        }
+                      }}
                     >
                       <TableCell className="px-5">
                         <div className="flex items-center gap-4">
@@ -469,6 +512,69 @@ export function OfferTrackWorkspace() {
                 </TableBody>
               </Table>
             </div>
+
+            {filteredRecords.length > 0 && (
+              <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  第 {(currentPage - 1) * pageSize + 1}–
+                  {Math.min(currentPage * pageSize, filteredRecords.length)}{' '}
+                  条， 共 {filteredRecords.length} 条
+                </p>
+                <Pagination className="mx-0 w-auto">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        text="上一页"
+                        aria-disabled={currentPage === 1}
+                        className={
+                          currentPage === 1
+                            ? 'pointer-events-none opacity-40'
+                            : undefined
+                        }
+                        onClick={(event) => {
+                          event.preventDefault();
+                          goToPage(currentPage - 1);
+                        }}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: pageCount }, (_, index) => {
+                      const pageNumber = index + 1;
+                      return (
+                        <PaginationItem key={pageNumber}>
+                          <PaginationLink
+                            href="#"
+                            isActive={currentPage === pageNumber}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              goToPage(pageNumber);
+                            }}
+                          >
+                            {pageNumber}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    })}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        text="下一页"
+                        aria-disabled={currentPage === pageCount}
+                        className={
+                          currentPage === pageCount
+                            ? 'pointer-events-none opacity-40'
+                            : undefined
+                        }
+                        onClick={(event) => {
+                          event.preventDefault();
+                          goToPage(currentPage + 1);
+                        }}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </div>
         </section>
 
