@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowUpRight,
   Building2,
   CircleDot,
   LogOut,
@@ -204,6 +203,87 @@ function InlineStageSelect({
         </SelectContent>
       </Select>
     </div>
+  );
+}
+
+function InlineWebsite({
+  record,
+  saving,
+  onSave,
+}: {
+  record: ApplicationRecord;
+  saving: boolean;
+  onSave: (portalUrl: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(record.portalUrl);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cancelling = useRef(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editing]);
+
+  const finishEditing = () => {
+    if (cancelling.current) {
+      cancelling.current = false;
+      return;
+    }
+
+    const value = draft.trim();
+    const portalUrl = value && !/^https?:\/\//i.test(value) ? `https://${value}` : value;
+    setEditing(false);
+    if (portalUrl === record.portalUrl) {
+      setDraft(record.portalUrl);
+      return;
+    }
+    onSave(portalUrl);
+  };
+
+  if (editing) {
+    return (
+      <Input
+        ref={inputRef}
+        type="url"
+        value={draft}
+        disabled={saving}
+        data-row-action
+        aria-label={`修改 ${record.company} 的企业网站地址`}
+        placeholder="https://..."
+        className="h-10 min-w-52 text-base"
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={finishEditing}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === 'Enter') event.currentTarget.blur();
+          if (event.key === 'Escape') {
+            cancelling.current = true;
+            setDraft(record.portalUrl);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={saving}
+      data-row-action
+      title="点击修改企业网站地址"
+      className="inline-flex max-w-[260px] rounded-md px-1 py-2 text-left font-semibold text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      onClick={(event) => {
+        event.stopPropagation();
+        setDraft(record.portalUrl);
+        setEditing(true);
+      }}
+    >
+      <span className="truncate">{websiteLabel(record.portalUrl)}</span>
+    </button>
   );
 }
 
@@ -487,7 +567,7 @@ export function OfferTrackWorkspace({
 
   const saveInlineChange = async (
     record: ApplicationRecord,
-    changes: Partial<Pick<ApplicationRecord, 'company' | 'stage'>>,
+    changes: Partial<Pick<ApplicationRecord, 'company' | 'stage' | 'portalUrl'>>,
     successTitle: string,
   ) => {
     setSavingId(record.id);
@@ -702,25 +782,17 @@ export function OfferTrackWorkspace({
                         {record.appliedAt}
                       </TableCell>
                       <TableCell>
-                        {record.portalUrl ? (
-                          <a
-                            href={record.portalUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void markCompanyChecked(record);
-                            }}
-                            className="inline-flex max-w-[260px] items-center gap-2 font-semibold text-emerald-700 hover:underline"
-                          >
-                            <span className="truncate">
-                              {websiteLabel(record.portalUrl)}
-                            </span>
-                            <ArrowUpRight className="size-4 shrink-0" />
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">未填写</span>
-                        )}
+                        <InlineWebsite
+                          record={record}
+                          saving={savingId === record.id}
+                          onSave={(portalUrl) =>
+                            void saveInlineChange(
+                              record,
+                              { portalUrl },
+                              `${record.company} 的网站地址已更新`,
+                            )
+                          }
+                        />
                       </TableCell>
                       <TableCell className="text-center">
                         <Button
