@@ -1,7 +1,7 @@
 import { getDatabase } from '@/db';
 
 const sessionCookieName = 'offertrack_session';
-const passwordIterations = 210_000;
+const passwordIterations = 100_000;
 const rememberedSessionSeconds = 60 * 60 * 24 * 30;
 const browserSessionSeconds = 60 * 60 * 24;
 
