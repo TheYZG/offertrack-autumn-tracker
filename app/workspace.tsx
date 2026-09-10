@@ -1,10 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, Building2, CircleDot, Plus, Search } from 'lucide-react';
+import {
+  ArrowUpRight,
+  Building2,
+  CircleDot,
+  LogOut,
+  Plus,
+  Search,
+  UserRound,
+} from 'lucide-react';
 import { ApplicationForm, createBlankApplication } from './application-form';
 import {
-  applications as initialApplications,
   stageOptions,
   type ApplicationRecord,
   type CurrentStage,
@@ -375,8 +382,14 @@ function AddApplicationDialog({
   );
 }
 
-export function OfferTrackWorkspace() {
-  const [records, setRecords] = useState(initialApplications);
+export function OfferTrackWorkspace({
+  username,
+  onLogout,
+}: {
+  username: string;
+  onLogout: () => void;
+}) {
+  const [records, setRecords] = useState<ApplicationRecord[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StageFilter>('流程中');
   const [page, setPage] = useState(1);
@@ -516,8 +529,16 @@ export function OfferTrackWorkspace() {
             </div>
           </div>
 
-          <div className="mt-auto px-2 pb-2 text-sm leading-6 text-slate-400">
-            只记录企业、阶段、投递时间和官网
+          <div className="mt-auto space-y-3 px-2 pb-2">
+            <div className="flex items-center gap-3 rounded-2xl bg-white/5 px-3 py-3 text-sm">
+              <UserRound className="size-4 text-emerald-300" />
+              <span className="min-w-0 truncate font-bold text-white">
+                {username}
+              </span>
+            </div>
+            <p className="text-sm leading-6 text-slate-400">
+              只记录企业、阶段、投递时间和官网
+            </p>
           </div>
         </aside>
 
@@ -533,14 +554,26 @@ export function OfferTrackWorkspace() {
                   秋招企业管理
                 </h1>
               </div>
-              <Button
-                size="lg"
-                className="h-12 shrink-0 rounded-xl px-5 text-base font-black shadow-sm"
-                onClick={() => setAddOpen(true)}
-              >
-                <Plus className="size-5" />
-                新增企业
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`退出账号 ${username}`}
+                  title="退出登录"
+                  onClick={onLogout}
+                >
+                  <LogOut className="size-5" />
+                </Button>
+                <Button
+                  size="lg"
+                  className="h-12 shrink-0 rounded-xl px-4 text-base font-black shadow-sm sm:px-5"
+                  onClick={() => setAddOpen(true)}
+                >
+                  <Plus className="size-5" />
+                  新增企业
+                </Button>
+              </div>
             </div>
           </header>
 
@@ -619,9 +652,7 @@ export function OfferTrackWorkspace() {
                         const target = event.target;
                         if (
                           target instanceof Element &&
-                          target.closest(
-                            'button, a, input, [data-row-action]',
-                          )
+                          target.closest('button, a, input, [data-row-action]')
                         ) {
                           return;
                         }

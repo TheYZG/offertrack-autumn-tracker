@@ -1,5 +1,5 @@
-import { OfferTrackWorkspace } from './workspace';
+import { OfferTrackApp } from './offertrack-app';
 
 export default function Home() {
-  return <OfferTrackWorkspace />;
+  return <OfferTrackApp />;
 }

@@ -1,6 +1,7 @@
 import { getDatabase } from '@/db';
+import { initialApplications } from '@/lib/initial-applications';
+import { AuthError, requireAuthenticatedUser } from '@/lib/password-auth';
 import {
-  applications as initialApplications,
   stageOptions,
   type ApplicationRecord,
   type CurrentStage,
@@ -24,6 +25,7 @@ const selectApplications = `
     created_at AS createdAt,
     updated_at AS updatedAt
   FROM application_records
+  WHERE owner_user_id = ?
   ORDER BY
     applied_at ASC,
     CASE
@@ -40,6 +42,13 @@ function json(data: unknown, status = 200) {
     status,
     headers: { 'Cache-Control': 'no-store' },
   });
+}
+
+function requestError(error: unknown, fallback: string, status: number) {
+  return json(
+    { error: error instanceof Error ? error.message : fallback },
+    error instanceof AuthError ? error.status : status,
+  );
 }
 
 function parseApplication(input: unknown, id?: string): ApplicationRecord {
@@ -81,16 +90,17 @@ function categoryForStage(stage: CurrentStage) {
   return '简历筛选';
 }
 
-function insertStatement(record: ApplicationRecord) {
+function insertStatement(record: ApplicationRecord, ownerUserId: string) {
   return getDatabase()
     .prepare(
       `INSERT OR IGNORE INTO application_records (
-        id, company, portal_url, applied_at, checked_at, stage, stage_category,
-        stage_status, priority, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, owner_user_id, company, portal_url, applied_at, checked_at, stage,
+        stage_category, stage_status, priority, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       record.id,
+      ownerUserId,
       record.company,
       record.portalUrl,
       record.appliedAt,
@@ -104,61 +114,72 @@ function insertStatement(record: ApplicationRecord) {
     );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const user = await requireAuthenticatedUser(request);
     const database = getDatabase();
     const count = await database
-      .prepare('SELECT COUNT(*) AS total FROM application_records')
+      .prepare(
+        `SELECT COUNT(*) AS total
+         FROM application_records
+         WHERE owner_user_id = ?`,
+      )
+      .bind(user.id)
       .first<{ total: number }>();
 
     if (!count?.total) {
-      await database.batch(initialApplications.map(insertStatement));
+      const firstUser = await database
+        .prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1')
+        .first<{ id: string }>();
+      if (firstUser?.id === user.id) {
+        await database.batch(
+          initialApplications.map((record) => insertStatement(record, user.id)),
+        );
+      }
     }
 
     await database
       .prepare(
         `UPDATE application_records
          SET applied_at = ?
-         WHERE applied_at = ''`,
+         WHERE owner_user_id = ? AND applied_at = ''`,
       )
-      .bind(initialAppliedDate)
+      .bind(initialAppliedDate, user.id)
       .run();
 
     await database
       .prepare(
         `UPDATE application_records
          SET stage = '简历筛选', stage_category = '简历筛选'
-         WHERE stage IN ('待补充', '已投递')`,
+         WHERE owner_user_id = ? AND stage IN ('待补充', '已投递')`,
       )
+      .bind(user.id)
       .run();
 
     const result = await database
       .prepare(selectApplications)
+      .bind(user.id)
       .all<ApplicationRecord>();
     return json({ applications: result.results });
   } catch (error) {
-    return json(
-      { error: error instanceof Error ? error.message : '读取企业记录失败' },
-      500,
-    );
+    return requestError(error, '读取企业记录失败', 500);
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const user = await requireAuthenticatedUser(request);
     const record = parseApplication(await request.json());
-    await insertStatement(record).run();
+    await insertStatement(record, user.id).run();
     return json({ application: record }, 201);
   } catch (error) {
-    return json(
-      { error: error instanceof Error ? error.message : '新增企业失败' },
-      400,
-    );
+    return requestError(error, '新增企业失败', 400);
   }
 }
 
 export async function PUT(request: Request) {
   try {
+    const user = await requireAuthenticatedUser(request);
     const body = await request.json();
     if (!body || typeof body !== 'object' || !('id' in body)) {
       throw new Error('缺少企业记录 ID');
@@ -169,9 +190,11 @@ export async function PUT(request: Request) {
     const database = getDatabase();
     const existing = await database
       .prepare(
-        'SELECT created_at AS createdAt FROM application_records WHERE id = ?',
+        `SELECT created_at AS createdAt
+         FROM application_records
+         WHERE id = ? AND owner_user_id = ?`,
       )
-      .bind(id)
+      .bind(id, user.id)
       .first<{ createdAt: string }>();
     if (!existing) return json({ error: '没有找到这条企业记录' }, 404);
 
@@ -183,7 +206,7 @@ export async function PUT(request: Request) {
       .prepare(
         `UPDATE application_records SET
           company = ?, portal_url = ?, applied_at = ?, stage = ?, stage_category = ?, updated_at = ?
-        WHERE id = ?`,
+        WHERE id = ? AND owner_user_id = ?`,
       )
       .bind(
         record.company,
@@ -193,20 +216,19 @@ export async function PUT(request: Request) {
         categoryForStage(record.stage),
         record.updatedAt,
         record.id,
+        user.id,
       )
       .run();
 
     return json({ application: record });
   } catch (error) {
-    return json(
-      { error: error instanceof Error ? error.message : '保存修改失败' },
-      400,
-    );
+    return requestError(error, '保存修改失败', 400);
   }
 }
 
 export async function PATCH(request: Request) {
   try {
+    const user = await requireAuthenticatedUser(request);
     const body = await request.json();
     const id =
       body &&
@@ -230,24 +252,22 @@ export async function PATCH(request: Request) {
       .prepare(
         `UPDATE application_records
          SET checked_at = ?, updated_at = ?
-         WHERE id = ?`,
+         WHERE id = ? AND owner_user_id = ?`,
       )
-      .bind(checkedAt, new Date().toISOString(), id)
+      .bind(checkedAt, new Date().toISOString(), id, user.id)
       .run();
     if (!result.meta.changes) {
       return json({ error: '没有找到这条企业记录' }, 404);
     }
     return json({ id, checkedAt });
   } catch (error) {
-    return json(
-      { error: error instanceof Error ? error.message : '更新检查状态失败' },
-      400,
-    );
+    return requestError(error, '更新检查状态失败', 400);
   }
 }
 
 export async function DELETE(request: Request) {
   try {
+    const user = await requireAuthenticatedUser(request);
     const body = await request.json();
     const id =
       body &&
@@ -259,8 +279,10 @@ export async function DELETE(request: Request) {
     if (!id) throw new Error('企业记录 ID 无效');
 
     const result = await getDatabase()
-      .prepare('DELETE FROM application_records WHERE id = ?')
-      .bind(id)
+      .prepare(
+        'DELETE FROM application_records WHERE id = ? AND owner_user_id = ?',
+      )
+      .bind(id, user.id)
       .run();
 
     if (!result.meta.changes) {
@@ -268,9 +290,6 @@ export async function DELETE(request: Request) {
     }
     return json({ deletedId: id });
   } catch (error) {
-    return json(
-      { error: error instanceof Error ? error.message : '删除企业失败' },
-      400,
-    );
+    return requestError(error, '删除企业失败', 400);
   }
 }

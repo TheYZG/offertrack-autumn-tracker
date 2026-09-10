@@ -1,9 +1,37 @@
-import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    username: text('username').notNull(),
+    usernameKey: text('username_key').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    passwordSalt: text('password_salt').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [uniqueIndex('idx_users_username_key').on(table.usernameKey)],
+);
+
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_sessions_user_id').on(table.userId),
+    index('idx_sessions_expires_at').on(table.expiresAt),
+  ],
+);
 
 export const applicationRecords = sqliteTable(
   'application_records',
   {
     id: text('id').primaryKey(),
+    ownerUserId: text('owner_user_id').notNull().default(''),
     company: text('company').notNull(),
     jobTitle: text('job_title').notNull().default(''),
     city: text('city').notNull().default(''),
@@ -21,5 +49,11 @@ export const applicationRecords = sqliteTable(
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (table) => [index('idx_application_records_updated_at').on(table.updatedAt)],
+  (table) => [
+    index('idx_application_records_owner_applied_at').on(
+      table.ownerUserId,
+      table.appliedAt,
+    ),
+    index('idx_application_records_updated_at').on(table.updatedAt),
+  ],
 );
