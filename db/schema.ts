@@ -57,3 +57,24 @@ export const applicationRecords = sqliteTable(
     index('idx_application_records_updated_at').on(table.updatedAt),
   ],
 );
+
+export const assessmentInterviewLinks = sqliteTable(
+  'assessment_interview_links',
+  {
+    id: text('id').primaryKey(),
+    ownerUserId: text('owner_user_id').notNull(),
+    company: text('company').notNull(),
+    type: text('type').notNull(),
+    title: text('title').notNull(),
+    url: text('url').notNull(),
+    notes: text('notes').notNull().default(''),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    index('idx_assessment_links_owner_updated').on(
+      table.ownerUserId,
+      table.updatedAt,
+    ),
+  ],
+);

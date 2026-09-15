@@ -10,6 +10,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { ApplicationForm, createBlankApplication } from './application-form';
+import { AssessmentLinks } from './assessment-links';
 import {
   stageOptions,
   type ApplicationRecord,
@@ -894,6 +895,10 @@ export function OfferTrackWorkspace({
                 </Pagination>
               </div>
             )}
+
+            <AssessmentLinks
+              companyOptions={records.map((record) => record.company)}
+            />
           </div>
         </section>
 
