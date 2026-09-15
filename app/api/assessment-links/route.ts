@@ -42,10 +42,8 @@ function parseLink(input: unknown, id?: string): AssessmentLinkRecord {
 
   const value = input as Record<string, unknown>;
   const company = typeof value.company === 'string' ? value.company.trim() : '';
-  const title = typeof value.title === 'string' ? value.title.trim() : '';
   const rawUrl = typeof value.url === 'string' ? value.url.trim() : '';
   if (!company) throw new Error('请填写企业名');
-  if (!title) throw new Error('请填写链接名称');
   if (!rawUrl) throw new Error('请填写网址');
 
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
@@ -58,6 +56,10 @@ function parseLink(input: unknown, id?: string): AssessmentLinkRecord {
   const type = assessmentLinkTypeOptions.includes(value.type as AssessmentLinkType)
     ? (value.type as AssessmentLinkType)
     : '测评';
+  const title =
+    typeof value.title === 'string' && value.title.trim()
+      ? value.title.trim()
+      : `${type}链接`;
   const now = new Date().toISOString();
 
   return {

@@ -1,4 +1,4 @@
-export const assessmentLinkTypeOptions = ['测评', '面试'] as const;
+export const assessmentLinkTypeOptions = ['测评', '笔试', '面试'] as const;
 
 export type AssessmentLinkType = (typeof assessmentLinkTypeOptions)[number];
 

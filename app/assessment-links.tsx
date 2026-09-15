@@ -107,7 +107,7 @@ export function AssessmentLinks({ companyOptions }: { companyOptions: string[] }
 
   const openCreate = () => {
     setEditing(null);
-    setDraft(createBlankLink(companies[0] ?? ''));
+    setDraft(createBlankLink());
     setDialogOpen(true);
   };
 
@@ -231,7 +231,6 @@ export function AssessmentLinks({ companyOptions }: { companyOptions: string[] }
                         {link.company}
                       </span>
                     </div>
-                    <h3 className="mt-2 truncate text-lg font-black text-slate-900">{link.title}</h3>
                   </div>
                   <div className="flex shrink-0 gap-1">
                     <Button type="button" variant="ghost" size="icon" aria-label={`编辑${link.title}`} onClick={() => openEdit(link)}>
@@ -265,10 +264,11 @@ export function AssessmentLinks({ companyOptions }: { companyOptions: string[] }
             <div className="grid gap-4 sm:grid-cols-2">
               <label htmlFor="assessment-company" className="space-y-2">
                 <span className="text-sm font-bold text-slate-700">企业</span>
-                <Input id="assessment-company" required list="offertrack-companies" value={draft.company} onChange={(event) => setDraft({ ...draft, company: event.target.value })} placeholder="例如：腾讯" />
-                <datalist id="offertrack-companies">
-                  {companies.map((company) => <option key={company} value={company} label={company} aria-label={company} />)}
-                </datalist>
+                <select id="assessment-company" required value={draft.company} onChange={(event) => setDraft({ ...draft, company: event.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <option value="" disabled>选择企业</option>
+                  {draft.company && !companies.includes(draft.company) && <option value={draft.company}>{draft.company}</option>}
+                  {companies.map((company) => <option key={company} value={company}>{company}</option>)}
+                </select>
               </label>
               <label htmlFor="assessment-type" className="space-y-2">
                 <span className="text-sm font-bold text-slate-700">类型</span>
@@ -277,13 +277,9 @@ export function AssessmentLinks({ companyOptions }: { companyOptions: string[] }
                 </select>
               </label>
             </div>
-            <label htmlFor="assessment-title" className="space-y-2">
-              <span className="text-sm font-bold text-slate-700">链接名称</span>
-              <Input id="assessment-title" required value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="例如：一面预约、SHL 测评" />
-            </label>
             <label htmlFor="assessment-url" className="space-y-2">
               <span className="text-sm font-bold text-slate-700">网址</span>
-              <Input id="assessment-url" required type="url" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} placeholder="https://..." />
+              <Input id="assessment-url" required type="text" inputMode="url" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} placeholder="https://..." />
             </label>
             <label htmlFor="assessment-notes" className="space-y-2">
               <span className="text-sm font-bold text-slate-700">备注（可选）</span>
