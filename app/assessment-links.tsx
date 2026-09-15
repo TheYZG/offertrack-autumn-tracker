@@ -61,7 +61,11 @@ function linkTypeClass(type: AssessmentLinkType) {
     : 'bg-violet-50 text-violet-700 ring-violet-200';
 }
 
-export function AssessmentLinks({ companyOptions }: { companyOptions: string[] }) {
+export function AssessmentLinks({
+  companyOptionsByType,
+}: {
+  companyOptionsByType: Record<AssessmentLinkType, string[]>;
+}) {
   const [links, setLinks] = useState<AssessmentLinkRecord[]>([]);
   const [filter, setFilter] = useState<LinkFilter>('全部');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -101,8 +105,9 @@ export function AssessmentLinks({ companyOptions }: { companyOptions: string[] }
     [filter, links],
   );
   const companies = useMemo(
-    () => Array.from(new Set(companyOptions.filter(Boolean))).sort(),
-    [companyOptions],
+    () =>
+      Array.from(new Set(companyOptionsByType[draft.type].filter(Boolean))).sort(),
+    [companyOptionsByType, draft.type],
   );
 
   const openCreate = () => {
@@ -266,13 +271,21 @@ export function AssessmentLinks({ companyOptions }: { companyOptions: string[] }
                 <span className="text-sm font-bold text-slate-700">企业</span>
                 <select id="assessment-company" required value={draft.company} onChange={(event) => setDraft({ ...draft, company: event.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <option value="" disabled>选择企业</option>
-                  {draft.company && !companies.includes(draft.company) && <option value={draft.company}>{draft.company}</option>}
                   {companies.map((company) => <option key={company} value={company}>{company}</option>)}
                 </select>
               </label>
               <label htmlFor="assessment-type" className="space-y-2">
                 <span className="text-sm font-bold text-slate-700">类型</span>
-                <select id="assessment-type" value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as AssessmentLinkType })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <select id="assessment-type" value={draft.type} onChange={(event) => {
+                  const type = event.target.value as AssessmentLinkType;
+                  setDraft({
+                    ...draft,
+                    type,
+                    company: companyOptionsByType[type].includes(draft.company)
+                      ? draft.company
+                      : '',
+                  });
+                }} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {assessmentLinkTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
                 </select>
               </label>

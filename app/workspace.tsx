@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { ApplicationForm, createBlankApplication } from './application-form';
 import { AssessmentLinks } from './assessment-links';
+import type { AssessmentLinkType } from '@/lib/assessment-links';
 import {
   stageOptions,
   type ApplicationRecord,
@@ -897,7 +898,25 @@ export function OfferTrackWorkspace({
             )}
 
             <AssessmentLinks
-              companyOptions={records.map((record) => record.company)}
+              companyOptionsByType={
+                (['测评', '笔试', '面试'] as AssessmentLinkType[]).reduce(
+                  (options, type) => {
+                    options[type] = Array.from(
+                      new Set(
+                        records
+                          .filter((record) => record.stage === type)
+                          .map((record) => record.company),
+                      ),
+                    );
+                    return options;
+                  },
+                  {
+                    测评: [],
+                    笔试: [],
+                    面试: [],
+                  } as Record<AssessmentLinkType, string[]>,
+                )
+              }
             />
           </div>
         </section>
