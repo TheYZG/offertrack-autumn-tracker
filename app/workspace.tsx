@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Building2,
   CircleDot,
+  Link2,
   LogOut,
   Plus,
   Search,
@@ -63,6 +64,7 @@ import {
 import { Toaster, toast } from '@/components/ui/toast';
 
 type StageFilter = '流程中' | '待更新' | CurrentStage;
+type WorkspaceModule = 'companies' | 'links';
 const pageSize = 10;
 
 const stageStyle: Record<CurrentStage, string> = {
@@ -236,7 +238,8 @@ function InlineWebsite({
     }
 
     const value = draft.trim();
-    const portalUrl = value && !/^https?:\/\//i.test(value) ? `https://${value}` : value;
+    const portalUrl =
+      value && !/^https?:\/\//i.test(value) ? `https://${value}` : value;
     setEditing(false);
     if (portalUrl === record.portalUrl) {
       setDraft(record.portalUrl);
@@ -475,6 +478,8 @@ export function OfferTrackWorkspace({
   const [records, setRecords] = useState<ApplicationRecord[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StageFilter>('流程中');
+  const [activeModule, setActiveModule] =
+    useState<WorkspaceModule>('companies');
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -570,7 +575,9 @@ export function OfferTrackWorkspace({
 
   const saveInlineChange = async (
     record: ApplicationRecord,
-    changes: Partial<Pick<ApplicationRecord, 'company' | 'stage' | 'portalUrl'>>,
+    changes: Partial<
+      Pick<ApplicationRecord, 'company' | 'stage' | 'portalUrl'>
+    >,
     successTitle: string,
   ) => {
     setSavingId(record.id);
@@ -602,15 +609,38 @@ export function OfferTrackWorkspace({
             </div>
           </div>
 
-          <div className="mt-10 rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-            <div className="flex items-center gap-3">
+          <nav className="mt-10 space-y-3" aria-label="工作台模块">
+            <Button
+              type="button"
+              variant="ghost"
+              className={`h-auto w-full justify-start rounded-2xl p-4 text-left text-white hover:bg-white/10 hover:text-white ${
+                activeModule === 'companies'
+                  ? 'bg-white/10 ring-1 ring-white/10'
+                  : ''
+              }`}
+              onClick={() => setActiveModule('companies')}
+            >
               <Building2 className="size-5 text-emerald-300" />
               <span className="font-bold">企业列表</span>
               <span className="ml-auto rounded-full bg-white/10 px-2.5 py-1 text-sm font-bold">
                 {records.length}
               </span>
-            </div>
-          </div>
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className={`h-auto w-full justify-start rounded-2xl p-4 text-left text-white hover:bg-white/10 hover:text-white ${
+                activeModule === 'links'
+                  ? 'bg-white/10 ring-1 ring-white/10'
+                  : ''
+              }`}
+              onClick={() => setActiveModule('links')}
+            >
+              <Link2 className="size-5 text-emerald-300" />
+              <span className="font-bold">测评 / 笔试管理</span>
+            </Button>
+          </nav>
 
           <div className="mt-auto space-y-3 px-2 pb-2">
             <div className="flex items-center gap-3 rounded-2xl bg-white/5 px-3 py-3 text-sm">
@@ -634,7 +664,9 @@ export function OfferTrackWorkspace({
                   <span className="font-black">OfferTrack</span>
                 </div>
                 <h1 className="truncate text-2xl font-black sm:text-3xl">
-                  秋招企业管理
+                  {activeModule === 'companies'
+                    ? '秋招企业管理'
+                    : '测评面试管理'}
                 </h1>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -648,275 +680,321 @@ export function OfferTrackWorkspace({
                 >
                   <LogOut className="size-5" />
                 </Button>
-                <Button
-                  size="lg"
-                  className="h-12 shrink-0 rounded-xl px-4 text-base font-black shadow-sm sm:px-5"
-                  onClick={() => setAddOpen(true)}
-                >
-                  <Plus className="size-5" />
-                  新增企业
-                </Button>
+                {activeModule === 'companies' && (
+                  <Button
+                    size="lg"
+                    className="h-12 shrink-0 rounded-xl px-4 text-base font-black shadow-sm sm:px-5"
+                    onClick={() => setAddOpen(true)}
+                  >
+                    <Plus className="size-5" />
+                    新增企业
+                  </Button>
+                )}
               </div>
             </div>
           </header>
 
           <div className="mx-auto max-w-6xl px-5 py-7 sm:px-8 sm:py-10">
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-lg font-black">共 {records.length} 家企业</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {loading ? '正在同步…' : loadError || '企业信息已同步保存'}
-                </p>
-              </div>
-              <div className="relative w-full sm:w-72">
-                <Search className="absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    setPage(1);
-                  }}
-                  placeholder="搜索企业"
-                  className="h-11 bg-white pr-10 pl-10 text-base"
-                />
-                {query && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="清除搜索"
-                    title="清除搜索"
-                    className="absolute top-1/2 right-1 size-9 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                    onClick={() => {
-                      setQuery('');
-                      setPage(1);
-                    }}
-                  >
-                    <X className="size-4" />
-                  </Button>
-                )}
-              </div>
+            <div className="mb-6 grid grid-cols-2 gap-2 lg:hidden">
+              <Button
+                type="button"
+                variant={activeModule === 'companies' ? 'default' : 'outline'}
+                className="justify-start rounded-xl"
+                onClick={() => setActiveModule('companies')}
+              >
+                <Building2 className="size-4" />
+                企业列表
+              </Button>
+              <Button
+                type="button"
+                variant={activeModule === 'links' ? 'default' : 'outline'}
+                className="justify-start rounded-xl"
+                onClick={() => setActiveModule('links')}
+              >
+                <Link2 className="size-4" />
+                测评 / 笔试管理
+              </Button>
             </div>
 
-            <div className="scrollbar-thin mb-5 flex gap-2 overflow-x-auto pb-2">
-              {(['流程中', '待更新', ...stageOptions] as const).map((stage) => {
-                const count = records.filter((record) => {
-                  if (stage === '流程中') return record.stage !== '已结束';
-                  if (stage === '待更新') {
-                    return (
-                      record.stage !== '已结束' && record.checkedAt !== today
-                    );
-                  }
-                  return record.stage === stage;
-                }).length;
-                return (
-                  <Button
-                    key={stage}
-                    type="button"
-                    variant={filter === stage ? 'default' : 'outline'}
-                    className="shrink-0 rounded-full"
-                    onClick={() => {
-                      setFilter(stage);
-                      setPage(1);
-                    }}
-                  >
-                    {stage}
-                    <span className="opacity-70">{count}</span>
-                  </Button>
-                );
-              })}
-            </div>
+            {activeModule === 'companies' ? (
+              <>
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-lg font-black">
+                      共 {records.length} 家企业
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {loading
+                        ? '正在同步…'
+                        : loadError || '企业信息已同步保存'}
+                    </p>
+                  </div>
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute top-1/2 left-3 size-5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={query}
+                      onChange={(event) => {
+                        setQuery(event.target.value);
+                        setPage(1);
+                      }}
+                      placeholder="搜索企业"
+                      className="h-11 bg-white pr-10 pl-10 text-base"
+                    />
+                    {query && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="清除搜索"
+                        title="清除搜索"
+                        className="absolute top-1/2 right-1 size-9 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                        onClick={() => {
+                          setQuery('');
+                          setPage(1);
+                        }}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
-            <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
-                    <TableHead className="min-w-[240px] px-5">企业名</TableHead>
-                    <TableHead className="min-w-[130px]">当前阶段</TableHead>
-                    <TableHead className="min-w-[130px]">投递时间</TableHead>
-                    <TableHead className="min-w-[220px]">
-                      企业网站地址
-                    </TableHead>
-                    <TableHead className="w-24 text-center">结束</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pageRecords.map((record) => (
-                    <TableRow
-                      key={record.id}
-                      role={record.portalUrl ? 'link' : undefined}
-                      tabIndex={record.portalUrl ? 0 : undefined}
-                      className={`h-[76px] ${record.portalUrl ? 'cursor-pointer' : ''}`}
-                      onClick={(event) => {
-                        const target = event.target;
-                        if (
-                          target instanceof Element &&
-                          target.closest('button, a, input, [data-row-action]')
-                        ) {
-                          return;
+                <div className="scrollbar-thin mb-5 flex gap-2 overflow-x-auto pb-2">
+                  {(['流程中', '待更新', ...stageOptions] as const).map(
+                    (stage) => {
+                      const count = records.filter((record) => {
+                        if (stage === '流程中')
+                          return record.stage !== '已结束';
+                        if (stage === '待更新') {
+                          return (
+                            record.stage !== '已结束' &&
+                            record.checkedAt !== today
+                          );
                         }
-                        openCompanyWebsite(record);
-                      }}
-                      onKeyDown={(event) => {
-                        if (
-                          event.target === event.currentTarget &&
-                          record.portalUrl &&
-                          (event.key === 'Enter' || event.key === ' ')
-                        ) {
-                          event.preventDefault();
-                          openCompanyWebsite(record);
-                        }
-                      }}
-                    >
-                      <TableCell className="px-5">
-                        <div className="flex items-center gap-4">
-                          <CompanyMark name={record.company} />
-                          <InlineCompanyName
-                            record={record}
-                            saving={savingId === record.id}
-                            onSave={(company) =>
-                              void saveInlineChange(
-                                record,
-                                { company },
-                                `企业名已改为 ${company}`,
-                              )
-                            }
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <InlineStageSelect
-                          record={record}
-                          saving={savingId === record.id}
-                          onChange={(stage) =>
-                            void saveInlineChange(
-                              record,
-                              { stage },
-                              `${record.company} 已更新为“${stage}”`,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="font-semibold text-slate-600">
-                        {record.appliedAt}
-                      </TableCell>
-                      <TableCell>
-                        <InlineWebsite
-                          record={record}
-                          saving={savingId === record.id}
-                          onSave={(portalUrl) =>
-                            void saveInlineChange(
-                              record,
-                              { portalUrl },
-                              `${record.company} 的网站地址已更新`,
-                            )
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="text-center">
+                        return record.stage === stage;
+                      }).length;
+                      return (
                         <Button
+                          key={stage}
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={
-                            record.stage === '已结束' || savingId === record.id
-                          }
-                          aria-label={`将 ${record.company} 标记为已结束`}
-                          className="border-rose-200 font-bold text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void saveInlineChange(
-                              record,
-                              { stage: '已结束' },
-                              `${record.company} 已移至“已结束”`,
-                            );
+                          variant={filter === stage ? 'default' : 'outline'}
+                          className="shrink-0 rounded-full"
+                          onClick={() => {
+                            setFilter(stage);
+                            setPage(1);
                           }}
                         >
-                          {record.stage === '已结束' ? '已结束' : '一键结束'}
+                          {stage}
+                          <span className="opacity-70">{count}</span>
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredRecords.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-36 text-center">
-                        <p className="font-bold">没有符合条件的企业</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          换一个阶段或搜索词试试
-                        </p>
-                      </TableCell>
-                    </TableRow>
+                      );
+                    },
                   )}
-                </TableBody>
-              </Table>
-            </div>
+                </div>
 
-            {filteredRecords.length > 0 && (
-              <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-                <p className="text-sm text-muted-foreground">
-                  第 {(currentPage - 1) * pageSize + 1}–
-                  {Math.min(currentPage * pageSize, filteredRecords.length)}{' '}
-                  条， 共 {filteredRecords.length} 条
-                </p>
-                <Pagination className="mx-0 w-auto">
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        href="#"
-                        text="上一页"
-                        aria-disabled={currentPage === 1}
-                        className={
-                          currentPage === 1
-                            ? 'pointer-events-none opacity-40'
-                            : undefined
-                        }
-                        onClick={(event) => {
-                          event.preventDefault();
-                          goToPage(currentPage - 1);
-                        }}
-                      />
-                    </PaginationItem>
-                    {Array.from({ length: pageCount }, (_, index) => {
-                      const pageNumber = index + 1;
-                      return (
-                        <PaginationItem key={pageNumber}>
-                          <PaginationLink
+                <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                        <TableHead className="min-w-[240px] px-5">
+                          企业名
+                        </TableHead>
+                        <TableHead className="min-w-[130px]">
+                          当前阶段
+                        </TableHead>
+                        <TableHead className="min-w-[130px]">
+                          投递时间
+                        </TableHead>
+                        <TableHead className="min-w-[220px]">
+                          企业网站地址
+                        </TableHead>
+                        <TableHead className="w-24 text-center">结束</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pageRecords.map((record) => (
+                        <TableRow
+                          key={record.id}
+                          role={record.portalUrl ? 'link' : undefined}
+                          tabIndex={record.portalUrl ? 0 : undefined}
+                          className={`h-[76px] ${record.portalUrl ? 'cursor-pointer' : ''}`}
+                          onClick={(event) => {
+                            const target = event.target;
+                            if (
+                              target instanceof Element &&
+                              target.closest(
+                                'button, a, input, [data-row-action]',
+                              )
+                            ) {
+                              return;
+                            }
+                            openCompanyWebsite(record);
+                          }}
+                          onKeyDown={(event) => {
+                            if (
+                              event.target === event.currentTarget &&
+                              record.portalUrl &&
+                              (event.key === 'Enter' || event.key === ' ')
+                            ) {
+                              event.preventDefault();
+                              openCompanyWebsite(record);
+                            }
+                          }}
+                        >
+                          <TableCell className="px-5">
+                            <div className="flex items-center gap-4">
+                              <CompanyMark name={record.company} />
+                              <InlineCompanyName
+                                record={record}
+                                saving={savingId === record.id}
+                                onSave={(company) =>
+                                  void saveInlineChange(
+                                    record,
+                                    { company },
+                                    `企业名已改为 ${company}`,
+                                  )
+                                }
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <InlineStageSelect
+                              record={record}
+                              saving={savingId === record.id}
+                              onChange={(stage) =>
+                                void saveInlineChange(
+                                  record,
+                                  { stage },
+                                  `${record.company} 已更新为“${stage}”`,
+                                )
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="font-semibold text-slate-600">
+                            {record.appliedAt}
+                          </TableCell>
+                          <TableCell>
+                            <InlineWebsite
+                              record={record}
+                              saving={savingId === record.id}
+                              onSave={(portalUrl) =>
+                                void saveInlineChange(
+                                  record,
+                                  { portalUrl },
+                                  `${record.company} 的网站地址已更新`,
+                                )
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={
+                                record.stage === '已结束' ||
+                                savingId === record.id
+                              }
+                              aria-label={`将 ${record.company} 标记为已结束`}
+                              className="border-rose-200 font-bold text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void saveInlineChange(
+                                  record,
+                                  { stage: '已结束' },
+                                  `${record.company} 已移至“已结束”`,
+                                );
+                              }}
+                            >
+                              {record.stage === '已结束'
+                                ? '已结束'
+                                : '一键结束'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredRecords.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-36 text-center">
+                            <p className="font-bold">没有符合条件的企业</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              换一个阶段或搜索词试试
+                            </p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {filteredRecords.length > 0 && (
+                  <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      第 {(currentPage - 1) * pageSize + 1}–
+                      {Math.min(currentPage * pageSize, filteredRecords.length)}{' '}
+                      条， 共 {filteredRecords.length} 条
+                    </p>
+                    <Pagination className="mx-0 w-auto">
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
                             href="#"
-                            isActive={currentPage === pageNumber}
+                            text="上一页"
+                            aria-disabled={currentPage === 1}
+                            className={
+                              currentPage === 1
+                                ? 'pointer-events-none opacity-40'
+                                : undefined
+                            }
                             onClick={(event) => {
                               event.preventDefault();
-                              goToPage(pageNumber);
+                              goToPage(currentPage - 1);
                             }}
-                          >
-                            {pageNumber}
-                          </PaginationLink>
+                          />
                         </PaginationItem>
-                      );
-                    })}
-                    <PaginationItem>
-                      <PaginationNext
-                        href="#"
-                        text="下一页"
-                        aria-disabled={currentPage === pageCount}
-                        className={
-                          currentPage === pageCount
-                            ? 'pointer-events-none opacity-40'
-                            : undefined
-                        }
-                        onClick={(event) => {
-                          event.preventDefault();
-                          goToPage(currentPage + 1);
-                        }}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              </div>
-            )}
-
-            <AssessmentLinks
-              companyOptionsByType={
-                (['测评', '笔试', '面试'] as AssessmentLinkType[]).reduce(
+                        {Array.from({ length: pageCount }, (_, index) => {
+                          const pageNumber = index + 1;
+                          return (
+                            <PaginationItem key={pageNumber}>
+                              <PaginationLink
+                                href="#"
+                                isActive={currentPage === pageNumber}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  goToPage(pageNumber);
+                                }}
+                              >
+                                {pageNumber}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        })}
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            text="下一页"
+                            aria-disabled={currentPage === pageCount}
+                            className={
+                              currentPage === pageCount
+                                ? 'pointer-events-none opacity-40'
+                                : undefined
+                            }
+                            onClick={(event) => {
+                              event.preventDefault();
+                              goToPage(currentPage + 1);
+                            }}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
+              </>
+            ) : (
+              <AssessmentLinks
+                companyOptionsByType={(
+                  ['测评', '笔试', '面试'] as AssessmentLinkType[]
+                ).reduce(
                   (options, type) => {
                     options[type] = Array.from(
                       new Set(
@@ -932,9 +1010,9 @@ export function OfferTrackWorkspace({
                     笔试: [],
                     面试: [],
                   } as Record<AssessmentLinkType, string[]>,
-                )
-              }
-            />
+                )}
+              />
+            )}
           </div>
         </section>
 

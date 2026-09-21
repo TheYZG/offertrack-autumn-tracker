@@ -36,10 +36,7 @@ function createBlankLink(company = ''): AssessmentLinkRecord {
   };
 }
 
-async function requestLink(
-  method: 'POST' | 'PUT',
-  link: AssessmentLinkRecord,
-) {
+async function requestLink(method: 'POST' | 'PUT', link: AssessmentLinkRecord) {
   const response = await fetch('/api/assessment-links', {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -88,7 +85,8 @@ export function AssessmentLinks({
         setLinks(payload.links);
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof DOMException && error.name === 'AbortError')
+          return;
         toast.add({
           title: error instanceof Error ? error.message : '加载链接失败',
           type: 'error',
@@ -106,7 +104,9 @@ export function AssessmentLinks({
   );
   const companies = useMemo(
     () =>
-      Array.from(new Set(companyOptionsByType[draft.type].filter(Boolean))).sort(),
+      Array.from(
+        new Set(companyOptionsByType[draft.type].filter(Boolean)),
+      ).sort(),
     [companyOptionsByType, draft.type],
   );
 
@@ -169,7 +169,7 @@ export function AssessmentLinks({
 
   return (
     <>
-      <section className="mt-10 rounded-3xl border bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-3xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
@@ -187,7 +187,11 @@ export function AssessmentLinks({
               </span>
             </div>
           </div>
-          <Button type="button" className="shrink-0 font-bold" onClick={openCreate}>
+          <Button
+            type="button"
+            className="shrink-0 font-bold"
+            onClick={openCreate}
+          >
             <Plus className="size-4" />
             新增链接
           </Button>
@@ -214,7 +218,9 @@ export function AssessmentLinks({
         </div>
 
         {loading ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">正在加载链接…</p>
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            正在加载链接…
+          </p>
         ) : visibleLinks.length === 0 ? (
           <div className="mt-4 rounded-2xl border border-dashed py-10 text-center">
             <p className="font-bold">还没有保存的链接</p>
@@ -225,11 +231,16 @@ export function AssessmentLinks({
         ) : (
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {visibleLinks.map((link) => (
-              <article key={link.id} className="rounded-2xl border p-4 transition-colors hover:border-slate-300">
+              <article
+                key={link.id}
+                className="rounded-2xl border p-4 transition-colors hover:border-slate-300"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${linkTypeClass(link.type)}`}>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${linkTypeClass(link.type)}`}
+                      >
                         {link.type}
                       </span>
                       <span className="truncate text-sm font-semibold text-slate-500">
@@ -238,19 +249,41 @@ export function AssessmentLinks({
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <Button type="button" variant="ghost" size="icon" aria-label={`编辑${link.title}`} onClick={() => openEdit(link)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`编辑${link.title}`}
+                      onClick={() => openEdit(link)}
+                    >
                       <Pencil className="size-4" />
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" aria-label={`删除${link.title}`} className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => void remove(link)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`删除${link.title}`}
+                      className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                      onClick={() => void remove(link)}
+                    >
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
                 </div>
-                <a href={link.url} target="_blank" rel="noreferrer" className="mt-3 flex min-w-0 items-center gap-2 text-sm font-bold text-emerald-700 hover:underline">
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 flex min-w-0 items-center gap-2 text-sm font-bold text-emerald-700 hover:underline"
+                >
                   <span className="truncate">{link.url}</span>
                   <ExternalLink className="size-4 shrink-0" />
                 </a>
-                {link.notes && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{link.notes}</p>}
+                {link.notes && (
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                    {link.notes}
+                  </p>
+                )}
               </article>
             ))}
           </div>
@@ -263,44 +296,99 @@ export function AssessmentLinks({
             <DialogTitle className="text-2xl font-black">
               {editing ? '编辑链接' : '新增测评/面试链接'}
             </DialogTitle>
-            <DialogDescription>保存后可以直接从卡片打开网址。</DialogDescription>
+            <DialogDescription>
+              保存后可以直接从卡片打开网址。
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <label htmlFor="assessment-company" className="space-y-2">
                 <span className="text-sm font-bold text-slate-700">企业</span>
-                <select id="assessment-company" required value={draft.company} onChange={(event) => setDraft({ ...draft, company: event.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <option value="" disabled>选择企业</option>
-                  {companies.map((company) => <option key={company} value={company}>{company}</option>)}
+                <select
+                  id="assessment-company"
+                  required
+                  value={draft.company}
+                  onChange={(event) =>
+                    setDraft({ ...draft, company: event.target.value })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="" disabled>
+                    选择企业
+                  </option>
+                  {companies.map((company) => (
+                    <option key={company} value={company}>
+                      {company}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label htmlFor="assessment-type" className="space-y-2">
                 <span className="text-sm font-bold text-slate-700">类型</span>
-                <select id="assessment-type" value={draft.type} onChange={(event) => {
-                  const type = event.target.value as AssessmentLinkType;
-                  setDraft({
-                    ...draft,
-                    type,
-                    company: companyOptionsByType[type].includes(draft.company)
-                      ? draft.company
-                      : '',
-                  });
-                }} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {assessmentLinkTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
+                <select
+                  id="assessment-type"
+                  value={draft.type}
+                  onChange={(event) => {
+                    const type = event.target.value as AssessmentLinkType;
+                    setDraft({
+                      ...draft,
+                      type,
+                      company: companyOptionsByType[type].includes(
+                        draft.company,
+                      )
+                        ? draft.company
+                        : '',
+                    });
+                  }}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {assessmentLinkTypeOptions.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
             <label htmlFor="assessment-url" className="space-y-2">
               <span className="text-sm font-bold text-slate-700">网址</span>
-              <Input id="assessment-url" required type="text" inputMode="url" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} placeholder="https://..." />
+              <Input
+                id="assessment-url"
+                required
+                type="text"
+                inputMode="url"
+                value={draft.url}
+                onChange={(event) =>
+                  setDraft({ ...draft, url: event.target.value })
+                }
+                placeholder="https://..."
+              />
             </label>
             <label htmlFor="assessment-notes" className="space-y-2">
-              <span className="text-sm font-bold text-slate-700">备注（可选）</span>
-              <Textarea id="assessment-notes" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="记录截止时间、注意事项等" rows={3} />
+              <span className="text-sm font-bold text-slate-700">
+                备注（可选）
+              </span>
+              <Textarea
+                id="assessment-notes"
+                value={draft.notes}
+                onChange={(event) =>
+                  setDraft({ ...draft, notes: event.target.value })
+                }
+                placeholder="记录截止时间、注意事项等"
+                rows={3}
+              />
             </label>
             <div className="flex justify-end gap-3 border-t pt-4">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
-              <Button type="submit" disabled={saving}>{saving ? '保存中…' : '保存链接'}</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? '保存中…' : '保存链接'}
+              </Button>
             </div>
           </form>
         </DialogContent>
