@@ -8,6 +8,7 @@ import {
   Plus,
   Search,
   UserRound,
+  X,
 } from 'lucide-react';
 import { ApplicationForm, createBlankApplication } from './application-form';
 import { AssessmentLinks } from './assessment-links';
@@ -676,8 +677,24 @@ export function OfferTrackWorkspace({
                     setPage(1);
                   }}
                   placeholder="搜索企业"
-                  className="h-11 bg-white pl-10 text-base"
+                  className="h-11 bg-white pr-10 pl-10 text-base"
                 />
+                {query && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="清除搜索"
+                    title="清除搜索"
+                    className="absolute top-1/2 right-1 size-9 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                    onClick={() => {
+                      setQuery('');
+                      setPage(1);
+                    }}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                )}
               </div>
             </div>
 
