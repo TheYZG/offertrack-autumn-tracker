@@ -11,6 +11,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { pinyin } from 'pinyin-pro';
 import { ApplicationForm, createBlankApplication } from './application-form';
 import { AssessmentLinks } from './assessment-links';
 import type { AssessmentLinkType } from '@/lib/assessment-links';
@@ -317,6 +318,24 @@ function sortApplications(records: ApplicationRecord[]) {
   return [...records].sort(compareApplications);
 }
 
+function normalizeSearchText(value: string) {
+  return value.toLocaleLowerCase().replace(/\s+/g, '');
+}
+
+function companySearchTexts(company: string) {
+  const fullPinyin = pinyin(company, {
+    toneType: 'none',
+    type: 'array',
+  }).join('');
+  const initials = pinyin(company, {
+    toneType: 'none',
+    type: 'array',
+    pattern: 'initial',
+  }).join('');
+
+  return [company, fullPinyin, initials].map(normalizeSearchText);
+}
+
 function localDateStamp() {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60_000;
@@ -512,7 +531,7 @@ export function OfferTrackWorkspace({
   }, []);
 
   const filteredRecords = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
+    const keyword = normalizeSearchText(query);
     return records.filter(
       (record) =>
         ((filter === '流程中' && record.stage !== '已结束') ||
@@ -520,7 +539,10 @@ export function OfferTrackWorkspace({
             record.stage !== '已结束' &&
             record.checkedAt !== today) ||
           record.stage === filter) &&
-        (!keyword || record.company.toLowerCase().includes(keyword)),
+        (!keyword ||
+          companySearchTexts(record.company).some((text) =>
+            text.includes(keyword),
+          )),
     );
   }, [filter, query, records, today]);
 
@@ -737,7 +759,7 @@ export function OfferTrackWorkspace({
                         setQuery(event.target.value);
                         setPage(1);
                       }}
-                      placeholder="搜索企业"
+                      placeholder="搜索企业名或拼音"
                       className="h-11 bg-white pr-10 pl-10 text-base"
                     />
                     {query && (
