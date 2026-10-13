@@ -9,6 +9,7 @@ export interface AssessmentLinkRecord {
   title: string;
   url: string;
   notes: string;
+  completedAt: string;
   createdAt: string;
   updatedAt: string;
 }

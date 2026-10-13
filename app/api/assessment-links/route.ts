@@ -14,6 +14,7 @@ const selectLinks = `
     title,
     url,
     notes,
+    completed_at AS completedAt,
     created_at AS createdAt,
     updated_at AS updatedAt
   FROM assessment_interview_links
@@ -53,7 +54,9 @@ function parseLink(input: unknown, id?: string): AssessmentLinkRecord {
     throw new Error('网址格式不正确');
   }
 
-  const type = assessmentLinkTypeOptions.includes(value.type as AssessmentLinkType)
+  const type = assessmentLinkTypeOptions.includes(
+    value.type as AssessmentLinkType,
+  )
     ? (value.type as AssessmentLinkType)
     : '测评';
   const title =
@@ -69,6 +72,7 @@ function parseLink(input: unknown, id?: string): AssessmentLinkRecord {
     title,
     url,
     notes: typeof value.notes === 'string' ? value.notes.trim() : '',
+    completedAt: typeof value.completedAt === 'string' ? value.completedAt : '',
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : now,
     updatedAt: now,
   };
@@ -94,8 +98,8 @@ export async function POST(request: Request) {
     await getDatabase()
       .prepare(
         `INSERT INTO assessment_interview_links
-          (id, owner_user_id, company, type, title, url, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, owner_user_id, company, type, title, url, notes, completed_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         record.id,
@@ -105,6 +109,7 @@ export async function POST(request: Request) {
         record.title,
         record.url,
         record.notes,
+        record.completedAt,
         record.createdAt,
         record.updatedAt,
       )
@@ -128,16 +133,20 @@ export async function PUT(request: Request) {
     const database = getDatabase();
     const existing = await database
       .prepare(
-        `SELECT created_at AS createdAt
+        `SELECT created_at AS createdAt, completed_at AS completedAt
          FROM assessment_interview_links
          WHERE id = ? AND owner_user_id = ?`,
       )
       .bind(id, user.id)
-      .first<{ createdAt: string }>();
+      .first<{ createdAt: string; completedAt: string }>();
     if (!existing) return json({ error: '没有找到这条链接' }, 404);
 
     const record = parseLink(
-      { ...(body as Record<string, unknown>), createdAt: existing.createdAt },
+      {
+        ...(body as Record<string, unknown>),
+        createdAt: existing.createdAt,
+        completedAt: existing.completedAt,
+      },
       id,
     );
     await database
@@ -160,6 +169,40 @@ export async function PUT(request: Request) {
     return json({ link: record });
   } catch (error) {
     return requestError(error, '保存链接失败', 400);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const user = await requireAuthenticatedUser(request);
+    const body = await request.json();
+    const id =
+      body &&
+      typeof body === 'object' &&
+      'id' in body &&
+      typeof body.id === 'string'
+        ? body.id
+        : '';
+    if (!id) throw new Error('链接 ID 无效');
+
+    const completed =
+      body &&
+      typeof body === 'object' &&
+      (body as Record<string, unknown>).completed === true;
+    const completedAt = completed ? new Date().toISOString() : '';
+    const updatedAt = new Date().toISOString();
+    const result = await getDatabase()
+      .prepare(
+        `UPDATE assessment_interview_links
+         SET completed_at = ?, updated_at = ?
+         WHERE id = ? AND owner_user_id = ?`,
+      )
+      .bind(completedAt, updatedAt, id, user.id)
+      .run();
+    if (!result.meta.changes) return json({ error: '没有找到这条链接' }, 404);
+    return json({ id, completedAt });
+  } catch (error) {
+    return requestError(error, '更新完成状态失败', 400);
   }
 }
 

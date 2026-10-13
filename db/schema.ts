@@ -68,6 +68,7 @@ export const assessmentInterviewLinks = sqliteTable(
     title: text('title').notNull(),
     url: text('url').notNull(),
     notes: text('notes').notNull().default(''),
+    completedAt: text('completed_at').notNull().default(''),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

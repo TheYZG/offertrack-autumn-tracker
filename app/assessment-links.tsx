@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
-import { ExternalLink, Link2, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  Check,
+  ExternalLink,
+  Link2,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from 'lucide-react';
 import {
   assessmentLinkTypeOptions,
   type AssessmentLinkRecord,
@@ -21,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 
 type LinkFilter = '全部' | AssessmentLinkType;
+type LinkStatus = 'pending' | 'completed';
 
 function createBlankLink(company = ''): AssessmentLinkRecord {
   const now = new Date().toISOString();
@@ -31,6 +40,7 @@ function createBlankLink(company = ''): AssessmentLinkRecord {
     title: '',
     url: '',
     notes: '',
+    completedAt: '',
     createdAt: now,
     updatedAt: now,
   };
@@ -64,6 +74,7 @@ export function AssessmentLinks({
   companyOptionsByType: Record<AssessmentLinkType, string[]>;
 }) {
   const [links, setLinks] = useState<AssessmentLinkRecord[]>([]);
+  const [status, setStatus] = useState<LinkStatus>('pending');
   const [filter, setFilter] = useState<LinkFilter>('全部');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AssessmentLinkRecord | null>(null);
@@ -99,8 +110,14 @@ export function AssessmentLinks({
 
   const visibleLinks = useMemo(
     () =>
-      filter === '全部' ? links : links.filter((link) => link.type === filter),
-    [filter, links],
+      links.filter((link) => {
+        const isCompleted = Boolean(link.completedAt);
+        return (
+          (status === 'completed' ? isCompleted : !isCompleted) &&
+          (filter === '全部' || link.type === filter)
+        );
+      }),
+    [filter, links, status],
   );
   const companies = useMemo(
     () =>
@@ -167,6 +184,40 @@ export function AssessmentLinks({
     }
   };
 
+  const toggleCompleted = async (link: AssessmentLinkRecord) => {
+    try {
+      const response = await fetch('/api/assessment-links', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: link.id, completed: !link.completedAt }),
+      });
+      const payload = (await response.json()) as {
+        id?: string;
+        completedAt?: string;
+        error?: string;
+      };
+      if (!response.ok || !payload.id) {
+        throw new Error(payload.error ?? '更新完成状态失败');
+      }
+      setLinks((current) =>
+        current.map((item) =>
+          item.id === link.id
+            ? { ...item, completedAt: payload.completedAt ?? '' }
+            : item,
+        ),
+      );
+      toast.add({
+        title: link.completedAt ? '已恢复到待处理' : '已移入已完成',
+        type: 'success',
+      });
+    } catch (error) {
+      toast.add({
+        title: error instanceof Error ? error.message : '更新完成状态失败',
+        type: 'error',
+      });
+    }
+  };
+
   return (
     <>
       <section className="rounded-3xl border bg-white p-5 shadow-sm sm:p-6">
@@ -183,7 +234,7 @@ export function AssessmentLinks({
                 </p>
               </div>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-sm font-bold text-slate-600">
-                {links.length}
+                {links.filter((link) => !link.completedAt).length} 待处理
               </span>
             </div>
           </div>
@@ -197,24 +248,51 @@ export function AssessmentLinks({
           </Button>
         </div>
 
-        <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-          {(['全部', ...assessmentLinkTypeOptions] as const).map((item) => (
-            <Button
-              key={item}
-              type="button"
-              size="sm"
-              variant={filter === item ? 'default' : 'outline'}
-              className="shrink-0 rounded-full"
-              onClick={() => setFilter(item)}
-            >
-              {item}
-              <span className="opacity-70">
-                {item === '全部'
-                  ? links.length
-                  : links.filter((link) => link.type === item).length}
-              </span>
-            </Button>
-          ))}
+        <div className="mt-5 space-y-2">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {(
+              [
+                ['pending', '待处理'],
+                ['completed', '已完成'],
+              ] as const
+            ).map(([value, label]) => {
+              const count = links.filter((link) =>
+                value === 'completed' ? link.completedAt : !link.completedAt,
+              ).length;
+              return (
+                <Button
+                  key={value}
+                  type="button"
+                  size="sm"
+                  variant={status === value ? 'default' : 'outline'}
+                  className="shrink-0 rounded-full"
+                  onClick={() => setStatus(value)}
+                >
+                  {label}
+                  <span className="opacity-70">{count}</span>
+                </Button>
+              );
+            })}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {(['全部', ...assessmentLinkTypeOptions] as const).map((item) => (
+              <Button
+                key={item}
+                type="button"
+                size="sm"
+                variant={filter === item ? 'default' : 'outline'}
+                className="shrink-0 rounded-full"
+                onClick={() => setFilter(item)}
+              >
+                {item}
+                <span className="opacity-70">
+                  {item === '全部'
+                    ? visibleLinks.length
+                    : visibleLinks.filter((link) => link.type === item).length}
+                </span>
+              </Button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
@@ -233,7 +311,9 @@ export function AssessmentLinks({
             {visibleLinks.map((link) => (
               <article
                 key={link.id}
-                className="rounded-2xl border p-4 transition-colors hover:border-slate-300"
+                className={`rounded-2xl border p-4 transition-colors hover:border-slate-300 ${
+                  link.completedAt ? 'border-emerald-200 bg-emerald-50/30' : ''
+                }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -249,6 +329,27 @@ export function AssessmentLinks({
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={
+                        link.completedAt ? '恢复到待处理' : '标记为已完成'
+                      }
+                      title={link.completedAt ? '恢复到待处理' : '标记为已完成'}
+                      className={
+                        link.completedAt
+                          ? 'text-slate-500 hover:bg-slate-100'
+                          : 'text-emerald-700 hover:bg-emerald-50'
+                      }
+                      onClick={() => void toggleCompleted(link)}
+                    >
+                      {link.completedAt ? (
+                        <RotateCcw className="size-4" />
+                      ) : (
+                        <Check className="size-4" />
+                      )}
+                    </Button>
                     <Button
                       type="button"
                       variant="ghost"

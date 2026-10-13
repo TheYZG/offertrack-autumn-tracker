@@ -1,0 +1,1 @@
+ALTER TABLE `assessment_interview_links` ADD `completed_at` text DEFAULT '' NOT NULL;
